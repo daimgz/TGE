@@ -1,0 +1,13 @@
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# binaries
+tests/test_unit
+tests/test_utf8
+fuzz/fuzz_*
+benchmarks/bench_*
+examples/min/00_runtime_only
+examples/min/01_draw_text

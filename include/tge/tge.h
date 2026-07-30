@@ -7,5 +7,6 @@
 #include "tge_runtime.h"
 #include "tge_app.h"
 #include "tge_scene.h"
+#include "tge_utf8.h"
 
 #endif
