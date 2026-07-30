@@ -30,7 +30,7 @@ test: $(TARGET) $(TEST_BINS)
 	[ $$fail -eq 0 ]
 
 tests/test_%: tests/test_%.c $(TARGET)
-	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge -o $@
 
 examples: $(TARGET) examples/min/00_runtime_only examples/min/01_draw_text
 
@@ -50,7 +50,7 @@ fuzz: $(TARGET) fuzz/fuzz_parser
 	./fuzz/fuzz_parser
 
 fuzz/fuzz_parser: fuzz/fuzz_parser.c $(TARGET)
-	$(CC) $(CFLAGS) $(INCLUDES) fuzz/fuzz_parser.c -L. -ltge -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) -Isrc fuzz/fuzz_parser.c -L. -ltge -o $@
 
 clean:
 	rm -f $(OBJ) $(TARGET)

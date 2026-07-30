@@ -47,9 +47,10 @@ TGE_Backend *tge_backend_ansi_create(void);
 typedef struct TGE_Parser TGE_Parser;
 typedef struct TGE_Scheduler TGE_Scheduler;
 
-TGE_Parser *tge_parser_new(void);
-void tge_parser_free(TGE_Parser *p);
+TGE_Parser *tge_parser_create(void);
+void tge_parser_destroy(TGE_Parser *p);
 void tge_parser_feed(TGE_Parser *p, const char *bytes, int len);
+void tge_parser_flush(TGE_Parser *p);
 bool tge_parser_poll(TGE_Parser *p, TGE_Event *ev);
 
 TGE_Scheduler *tge_scheduler_new(void);

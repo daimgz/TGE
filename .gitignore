@@ -7,6 +7,7 @@
 # binaries
 tests/test_unit
 tests/test_utf8
+tests/test_parser
 fuzz/fuzz_*
 benchmarks/bench_*
 examples/min/00_runtime_only
