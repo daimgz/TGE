@@ -14,8 +14,14 @@ tests/test_renderer
 tests/test_runtime
 tests/test_scene
 tests/test_scheduler
+tests/check_no_malloc
 fuzz/fuzz_*
 benchmarks/bench_*
 examples/min/00_runtime_only
 examples/min/01_draw_text
+examples/min/02_input_keys
+examples/min/03_timer
+examples/min/04_colors
+examples/min/05_resize
+examples/min/06_mouse
 examples/games/01_snake

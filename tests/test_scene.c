@@ -32,6 +32,13 @@ static TGE_Scene *make_scene(int id)
     return sc;
 }
 
+static void free_scene(TGE_Scene *sc)
+{
+    if (sc)
+        free(sc->userdata);
+    free(sc);
+}
+
 static TGE_App *make_test_app(MockData **md)
 {
     TGE_Backend *b = mock_backend_create(md);
@@ -104,6 +111,8 @@ TGE_TEST(push_pop_replace_deferred)
     TGE_ASSERT(app->scene_count == 1 && app->scenes[0] == b, "replace applied");
 
     TGE_Destroy(app);
+    free_scene(a);
+    free_scene(b);
 }
 
 TGE_TEST(init_called_on_apply)
@@ -118,6 +127,7 @@ TGE_TEST(init_called_on_apply)
     tge_app_process_scene_ops(app);
     TGE_ASSERT(g_inits == 1, "init called once on apply");
     TGE_Destroy(app);
+    free_scene(a);
 }
 
 TGE_TEST(top_scene_updated_and_drawn)
@@ -137,6 +147,7 @@ TGE_TEST(top_scene_updated_and_drawn)
     TGE_ASSERT(r->updates == 1, "top scene updated");
     TGE_ASSERT(g_trace_count == 1 && g_trace[0] == 1, "top scene drawn");
     TGE_Destroy(app);
+    free_scene(a);
 }
 
 TGE_TEST(draw_bottom_to_top_opaque_stops)
@@ -160,6 +171,9 @@ TGE_TEST(draw_bottom_to_top_opaque_stops)
     TGE_ASSERT(g_trace_count == 2, "c hidden by opaque b");
     TGE_ASSERT(g_trace[0] == 1 && g_trace[1] == 2, "a then b, bottom to top");
     TGE_Destroy(app);
+    free_scene(a);
+    free_scene(b);
+    free_scene(c);
 }
 
 TGE_TEST(transparent_scene_does_not_hide)
@@ -180,6 +194,8 @@ TGE_TEST(transparent_scene_does_not_hide)
     TGE_ASSERT(g_trace_count == 2, "both drawn when transparent");
     TGE_ASSERT(g_trace[0] == 1 && g_trace[1] == 2, "a below, b above");
     TGE_Destroy(app);
+    free_scene(a);
+    free_scene(b);
 }
 
 TGE_TEST(push_during_update_applied_after_frame)
@@ -204,6 +220,8 @@ TGE_TEST(push_during_update_applied_after_frame)
     tge_app_frame(app);
     TGE_ASSERT(g_trace_count == 2, "a and b drawn next frame");
     TGE_Destroy(app);
+    free_scene(a);
+    free_scene(g_scene_b);
 }
 
 TGE_TEST(events_go_to_top_scene)
@@ -227,6 +245,8 @@ TGE_TEST(events_go_to_top_scene)
     TGE_ASSERT(rb->last_event == TGE_EVENT_KEYDOWN, "keydown");
     TGE_ASSERT(rb->last_key == TGE_KEY_UP, "up arrow");
     TGE_Destroy(app);
+    free_scene(a);
+    free_scene(b);
 }
 
 TGE_TEST(pop_during_event_applied_after_frame)
@@ -246,6 +266,8 @@ TGE_TEST(pop_during_event_applied_after_frame)
     TGE_ASSERT(app->scene_count == 1, "pop applied at end of frame");
     TGE_ASSERT(app->scenes[0] == a, "a remains");
     TGE_Destroy(app);
+    free_scene(a);
+    free_scene(b);
 }
 
 TGE_TEST(resize_resizes_canvases)

@@ -17,7 +17,7 @@ typedef struct {
     int captured_count;
 } MockData;
 
-static bool mock_init(void *d, int w, int h)
+static inline bool mock_init(void *d, int w, int h)
 {
     (void)d;
     (void)w;
@@ -25,24 +25,24 @@ static bool mock_init(void *d, int w, int h)
     return true;
 }
 
-static void mock_term(void *d)
+static inline void mock_term(void *d)
 {
     (void)d;
 }
 
-static int mock_width(void *d)
-{
-    (void)d;
-    return 0;
-}
-
-static int mock_height(void *d)
+static inline int mock_width(void *d)
 {
     (void)d;
     return 0;
 }
 
-static void mock_present(void *d, TGE_Diff *diff, const TGE_Cell *cells,
+static inline int mock_height(void *d)
+{
+    (void)d;
+    return 0;
+}
+
+static inline void mock_present(void *d, TGE_Diff *diff, const TGE_Cell *cells,
                          int stride)
 {
     MockData *m = (MockData *)d;
@@ -56,7 +56,7 @@ static void mock_present(void *d, TGE_Diff *diff, const TGE_Cell *cells,
     }
 }
 
-static int mock_read_input(void *d, char *buf, int bufsize)
+static inline int mock_read_input(void *d, char *buf, int bufsize)
 {
     MockData *m = (MockData *)d;
     int n = 0;
@@ -65,19 +65,19 @@ static int mock_read_input(void *d, char *buf, int bufsize)
     return n;
 }
 
-static uint64_t mock_ticks(void *d)
+static inline uint64_t mock_ticks(void *d)
 {
     return ((MockData *)d)->now_ms;
 }
 
-static void mock_set_input(MockData *m, const char *bytes, int len)
+static inline void mock_set_input(MockData *m, const char *bytes, int len)
 {
     m->input = bytes;
     m->input_len = len;
     m->input_pos = 0;
 }
 
-static TGE_Backend *mock_backend_create(MockData **out)
+static inline TGE_Backend *mock_backend_create(MockData **out)
 {
     MockData *m = (MockData *)calloc(1, sizeof(MockData));
     if (!m)

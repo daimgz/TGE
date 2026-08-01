@@ -20,6 +20,7 @@ void tge_runtime_pump_input(TGE_Runtime *rt)
     int n = rt->backend->read_input(rt->backend->data, buf, (int)sizeof(buf));
     if (n > 0)
         tge_parser_feed(rt->parser, buf, n);
+    tge_parser_flush(rt->parser);
     TGE_Event ev;
     while (tge_parser_poll(rt->parser, &ev))
         rq_push(rt, &ev);

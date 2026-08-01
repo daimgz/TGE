@@ -439,6 +439,9 @@ int tge_utf8_char_width(uint32_t codepoint)
         return 0;
     }
 
+    if (codepoint <= 0x7E)
+        return 1;
+
     if (codepoint >= 0x7F && codepoint <= 0x9F)
         return 0;
 

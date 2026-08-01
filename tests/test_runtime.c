@@ -31,6 +31,19 @@ TGE_TEST(poll_event_keydown)
     tge_runtime_destroy(rt);
 }
 
+TGE_TEST(poll_event_lone_esc)
+{
+    MockData *m;
+    TGE_Runtime *rt = tge_runtime_create_with_backend(mock_backend_create(&m),
+                                                      80, 24);
+    mock_set_input(m, "\x1b", 1);
+    TGE_Event ev;
+    TGE_ASSERT(tge_runtime_poll_event(rt, &ev) == true, "ESC flushed");
+    TGE_ASSERT(ev.type == TGE_EVENT_KEYDOWN, "keydown");
+    TGE_ASSERT(ev.data.key.keycode == TGE_KEY_ESC, "ESC");
+    tge_runtime_destroy(rt);
+}
+
 TGE_TEST(poll_event_text_utf8)
 {
     MockData *m;
@@ -147,6 +160,7 @@ int main(void)
 {
     test_create_destroy();
     test_poll_event_keydown();
+    test_poll_event_lone_esc();
     test_poll_event_text_utf8();
     test_present_receives_cells();
     test_scheduler_integration();
