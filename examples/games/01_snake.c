@@ -143,6 +143,8 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
 
+    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
 
     char hud[32];

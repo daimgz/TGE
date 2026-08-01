@@ -23,7 +23,7 @@ TGE_TEST(call_later_fires_once)
     tge_scheduler_poll(s, 3.0, ev, &n);
     TGE_ASSERT(n == 1, "due at 3.0 (2.0 after creation)");
     TGE_ASSERT(ev[0].type == TGE_EVENT_TIMER, "timer event");
-    TGE_ASSERT(ev[0].data.timer.id == id, "same id");
+    TGE_ASSERT(ev[0].data.timer.id == 42, "event id delivered");
     TGE_ASSERT(ev[0].data.timer.priority == TGE_TIMER_NORMAL, "priority");
 
     tge_scheduler_poll(s, 10.0, ev, &n);
@@ -56,10 +56,10 @@ TGE_TEST(priority_order)
 
     tge_scheduler_poll(s, 2.0, ev, &n);
     TGE_ASSERT(n == 4, "all four expired");
-    TGE_ASSERT(ev[0].data.timer.id == high, "HIGH first");
-    TGE_ASSERT(ev[1].data.timer.id == normal_a, "NORMAL first inserted");
-    TGE_ASSERT(ev[2].data.timer.id == normal_b, "NORMAL FIFO");
-    TGE_ASSERT(ev[3].data.timer.id == low, "LOW last");
+    TGE_ASSERT(ev[0].data.timer.id == 2, "HIGH first");
+    TGE_ASSERT(ev[1].data.timer.id == 3, "NORMAL first inserted");
+    TGE_ASSERT(ev[2].data.timer.id == 4, "NORMAL FIFO");
+    TGE_ASSERT(ev[3].data.timer.id == 1, "LOW last");
 
     tge_scheduler_free(s);
 }
@@ -77,7 +77,7 @@ TGE_TEST(call_every_repeats)
 
     tge_scheduler_poll(s, 1.5, ev, &n);
     TGE_ASSERT(n == 1, "first fire at 1.5");
-    TGE_ASSERT(ev[0].data.timer.id == id, "correct id");
+    TGE_ASSERT(ev[0].data.timer.id == 7, "event id delivered");
 
     tge_scheduler_poll(s, 2.0, ev, &n);
     TGE_ASSERT(n == 1, "second fire at 2.0");
@@ -131,7 +131,7 @@ TGE_TEST(cancel_before_fire)
 
     tge_scheduler_poll(s, 2.0, ev, &n);
     TGE_ASSERT(n == 1, "only b fires");
-    TGE_ASSERT(ev[0].data.timer.id == b, "b fired");
+    TGE_ASSERT(ev[0].data.timer.id == 2, "b event id fired");
     tge_scheduler_free(s);
 }
 
@@ -145,6 +145,7 @@ TGE_TEST(cancel_repeating)
     int n = 0;
     tge_scheduler_poll(s, 1.5, ev, &n);
     TGE_ASSERT(n == 1, "first fire");
+    TGE_ASSERT(ev[0].data.timer.id == 1, "event id delivered");
 
     tge_scheduler_cancel(s, a);
     tge_scheduler_poll(s, 2.5, ev, &n);
@@ -167,7 +168,7 @@ TGE_TEST(slot_reuse_after_fire)
     TGE_ASSERT(b > 0, "slot reused");
     tge_scheduler_poll(s, 2.0, ev, &n);
     TGE_ASSERT(n == 1, "b fired");
-    TGE_ASSERT(ev[0].data.timer.id == b, "b id");
+    TGE_ASSERT(ev[0].data.timer.id == 2, "b event id");
     tge_scheduler_free(s);
 }
 

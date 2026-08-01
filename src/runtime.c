@@ -84,6 +84,11 @@ TGE_Runtime *tge_runtime_create_with_backend(TGE_Backend *backend,
         tge_runtime_destroy(rt);
         return NULL;
     }
+    {
+        TGE_Event evs[TGE_SCHED_MAX_TIMERS];
+        int count = 0;
+        tge_scheduler_poll(rt->scheduler, tge_runtime_now(rt), evs, &count);
+    }
     return rt;
 }
 

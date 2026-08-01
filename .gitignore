@@ -25,3 +25,4 @@ examples/min/04_colors
 examples/min/05_resize
 examples/min/06_mouse
 examples/games/01_snake
+examples/games/02_pong

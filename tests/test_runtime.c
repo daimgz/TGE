@@ -94,7 +94,7 @@ TGE_TEST(scheduler_integration)
     tge_runtime_pump_timers(rt, 3.0);
     TGE_ASSERT(tge_runtime_poll_queued(rt, &ev) == true, "timer queued");
     TGE_ASSERT(ev.type == TGE_EVENT_TIMER, "timer event");
-    TGE_ASSERT(ev.data.timer.id == id, "timer id matches");
+    TGE_ASSERT(ev.data.timer.id == 99, "event id delivered");
 
     tge_runtime_cancel_scheduled(rt, id);
     tge_runtime_destroy(rt);

@@ -212,7 +212,7 @@ void tge_scheduler_poll(TGE_Scheduler *s, double now,
 
     for (int i = 0; i < n; i++) {
         ev_out[*count].type = TGE_EVENT_TIMER;
-        ev_out[*count].data.timer.id = s->expired[i]->timer_id;
+        ev_out[*count].data.timer.id = s->expired[i]->event_id;
         ev_out[*count].data.timer.priority = s->expired[i]->priority;
         (*count)++;
     }
