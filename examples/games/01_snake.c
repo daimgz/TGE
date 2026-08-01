@@ -118,7 +118,6 @@ static bool snake_step(GameState *s)
         s->score += 10;
         return spawn_food(s);
     }
-    s->len--;
     return true;
 }
 

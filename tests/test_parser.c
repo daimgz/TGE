@@ -372,7 +372,7 @@ TGE_TEST(sgr_mouse_modifier)
 TGE_TEST(resize)
 {
     TGE_Parser *p = tge_parser_create();
-    tge_parser_feed(p, "\x1B[8;80;24t", 10);
+    tge_parser_feed(p, "\x1B[8;24;80t", 10);
     TGE_Event ev;
     TGE_ASSERT(tge_parser_poll(p, &ev) == true, "resize");
     TGE_ASSERT(ev.type == TGE_EVENT_RESIZE, "RESIZE");

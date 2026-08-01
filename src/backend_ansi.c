@@ -35,6 +35,7 @@ static void flush_obuf(ANSIState *s)
     if (s->obuf && s->obuf_len > 0) {
         fwrite(s->obuf, 1, (size_t)s->obuf_len, s->out);
         s->obuf_len = 0;
+        fflush(s->out);
     }
 }
 

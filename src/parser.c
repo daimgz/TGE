@@ -146,8 +146,8 @@ static void translate_csi(TGE_Parser *p, ParserToken *tok)
         if (p0 == 8) {
             TGE_Event ev;
             ev.type = TGE_EVENT_RESIZE;
-            ev.data.resize.w = p1;
-            ev.data.resize.h = tok->params[2];
+            ev.data.resize.w = tok->params[2];
+            ev.data.resize.h = p1;
             queue_event(p, &ev);
         }
         return;

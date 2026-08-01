@@ -105,7 +105,7 @@ TGE_TEST(resize_updates_runtime)
     MockData *m;
     TGE_Runtime *rt = tge_runtime_create_with_backend(mock_backend_create(&m),
                                                       80, 24);
-    mock_set_input(m, "\x1b[8;120;40t", 11);
+    mock_set_input(m, "\x1b[8;40;120t", 11);
     TGE_Event ev;
     TGE_ASSERT(tge_runtime_poll_event(rt, &ev) == true, "resize event");
     TGE_ASSERT(ev.type == TGE_EVENT_RESIZE, "RESIZE");

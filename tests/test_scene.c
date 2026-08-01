@@ -274,7 +274,7 @@ TGE_TEST(resize_resizes_canvases)
 {
     MockData *m;
     TGE_App *app = make_test_app(&m);
-    mock_set_input(m, "\x1b[8;80;24t", 10);
+    mock_set_input(m, "\x1b[8;24;80t", 10);
     tge_app_frame(app);
     TGE_ASSERT(tge_canvas_width(app->current) == 80, "current width");
     TGE_ASSERT(tge_canvas_height(app->current) == 24, "current height");
