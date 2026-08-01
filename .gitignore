@@ -8,7 +8,14 @@
 tests/test_unit
 tests/test_utf8
 tests/test_parser
+tests/test_canvas
+tests/test_math
+tests/test_renderer
+tests/test_runtime
+tests/test_scene
+tests/test_scheduler
 fuzz/fuzz_*
 benchmarks/bench_*
 examples/min/00_runtime_only
 examples/min/01_draw_text
+examples/games/01_snake

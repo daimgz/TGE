@@ -21,6 +21,9 @@ bool tge_runtime_poll_event(TGE_Runtime *rt, TGE_Event *ev);
 void tge_runtime_present(TGE_Runtime *rt, TGE_Diff *diff,
                          const TGE_Cell *cells, int stride);
 
+void tge_runtime_present_full(TGE_Runtime *rt, const TGE_Cell *cells,
+                              int stride);
+
 int  tge_runtime_call_later(TGE_Runtime *rt, double delay, int event_id,
                             int priority);
 int  tge_runtime_call_every(TGE_Runtime *rt, double interval, int event_id,

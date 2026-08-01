@@ -26,6 +26,12 @@ typedef enum {
 #define TGE_MOD_ALT    (1<<1)
 #define TGE_MOD_CTRL   (1<<2)
 
+typedef enum {
+    TGE_TIMER_HIGH   = 0,
+    TGE_TIMER_NORMAL = 1,
+    TGE_TIMER_LOW    = 2,
+} TGE_TimerPriority;
+
 #define TGE_KEY_UNKNOWN     0
 #define TGE_KEY_ESC         27
 #define TGE_KEY_ENTER       13
