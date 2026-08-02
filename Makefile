@@ -70,7 +70,7 @@ examples: $(TARGET) examples/min/00_runtime_only examples/min/01_draw_text examp
 examples/min/%: examples/min/%.c $(TARGET) $(EXTRA_TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
 
-games: $(TARGET) examples/games/01_snake examples/games/02_pong
+games: $(TARGET) examples/games/01_snake examples/games/02_pong examples/games/03_tetris examples/games/04_space_invaders
 
 examples/games/%: examples/games/%.c $(TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge -lm -o $@
@@ -104,4 +104,4 @@ clean:
 	rm -f fuzz/fuzz_parser
 	rm -f benchmarks/bench_renderer benchmarks/bench_canvas_fill benchmarks/bench_draw_line
 	rm -f examples/min/00_runtime_only examples/min/01_draw_text examples/min/02_input_keys examples/min/03_timer examples/min/04_colors examples/min/05_resize examples/min/06_mouse examples/min/07_extra_demo
-	rm -f examples/games/01_snake examples/games/02_pong
+	rm -f examples/games/01_snake examples/games/02_pong examples/games/03_tetris examples/games/04_space_invaders

@@ -73,7 +73,7 @@ examples/
     01_snake.c        — Fase 2: snake (timer, input, draw)
     02_pong.c         — Fase 3: pong con escenas, física, colisiones
     03_tetris.c       — Fase 3: tetris (timers, input, drawing)
-    04_invaders.c     — Fase 3: space invaders (composite)
+    04_space_invaders.c — Fase 3: space invaders (composite)
 fuzz/
   fuzz_parser.c       — Fuzzing: millones de bytes aleatorios al parser
 docs/
@@ -952,12 +952,12 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [ ] 1.6: Clipping implícito en todas las draw functions
 - [ ] 1.6: Benchmarks: renderer (10/50/100% diff), canvas fill, draw line
 - [ ] 1.6: Sin malloc en render path (verificado con strace/valgrind)
-- [ ] Fase 2: Math + geometry (Vector2, Rect)
-- [ ] Fase 2: Scene stack con ops diferidas
-- [ ] Fase 2: TGE_App con game loop (orden ADR-025) + Snake jugable
-- [ ] Fase 3: Pong jugable (física continua, dt, colisiones con ángulo)
-- [ ] Fase 3: Tetris jugable (rotación, grid, gravedad)
-- [ ] Fase 3: Space Invaders jugable (múltiples entidades, colisiones)
-- [ ] Todos los headers públicos autocontenidos
-- [ ] API documentation (comentarios en headers)
-- [ ] docs/API_STABILITY.md publicado
+- [x] Fase 2: Math + geometry (Vector2, Rect)
+- [x] Fase 2: Scene stack con ops diferidas
+- [x] Fase 2: TGE_App con game loop (orden ADR-025) + Snake jugable
+- [x] Fase 3: Pong jugable (física continua, dt, colisiones con ángulo)
+- [x] Fase 3: Tetris jugable (rotación, grid, gravedad)
+- [x] Fase 3: Space Invaders jugable (múltiples entidades, colisiones)
+- [x] Todos los headers públicos autocontenidos
+- [x] API documentation (comentarios en headers)
+- [x] docs/API_STABILITY.md publicado
