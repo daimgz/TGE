@@ -49,12 +49,20 @@ void tge_app_process_scene_ops(TGE_App *app)
             }
             break;
         case TGE_SCENE_OP_POP:
-            if (app->scene_count > 0)
+            if (app->scene_count > 0) {
                 app->scene_count--;
+                TGE_Scene *popped = app->scenes[app->scene_count];
+                if (popped->destroy)
+                    popped->destroy(popped);
+            }
             break;
         case TGE_SCENE_OP_REPLACE:
-            if (app->scene_count > 0)
+            if (app->scene_count > 0) {
                 app->scene_count--;
+                TGE_Scene *old = app->scenes[app->scene_count];
+                if (old->destroy)
+                    old->destroy(old);
+            }
             if (app->scene_count < TGE_SCENE_MAX) {
                 app->scenes[app->scene_count++] = op->scene;
                 if (op->scene->init)

@@ -161,7 +161,7 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 
     if (s->state == SNAKE_OVER) {
         const char *msg = " GAME OVER ";
-        const char *again = " [ENTER] to restart  [Q] to quit ";
+        const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
         int mx = (w - (int)strlen(msg)) / 2;
         tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
                       TGE_COLOR_BLACK);
@@ -182,6 +182,10 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         case 's': case 'S': push_dir(s, 0, 1); break;
         case 'a': case 'A': push_dir(s, -1, 0); break;
         case 'd': case 'D': push_dir(s, 1, 0); break;
+        case 'q': case 'Q':
+            if (s->state == SNAKE_OVER)
+                TGE_Quit(g_app);
+            break;
         case 13:
             if (s->state == SNAKE_OVER)
                 snake_reset(s);
@@ -195,8 +199,7 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         case TGE_KEY_LEFT: push_dir(s, -1, 0); break;
         case TGE_KEY_RIGHT: push_dir(s, 1, 0); break;
         case TGE_KEY_ESC:
-            if (s->state == SNAKE_OVER)
-                TGE_Quit(g_app);
+            TGE_PopScene(g_app);
             break;
         default: break;
         }
@@ -216,7 +219,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int h = tge_canvas_height(canvas);
     const char *title = " SNAKE ";
     const char *controls = " Arrows or WASD to move ";
-    const char *start = " [ENTER] to start  [Q] to quit ";
+    const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
     tge_draw_text(canvas, (w - (int)strlen(title)) / 2, h / 2 - 2, title,
@@ -231,8 +234,14 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
 {
     (void)scene;
     bool enter = false;
-    if (ev->type == TGE_EVENT_TEXT && ev->data.text.codepoint == 13) {
-        enter = true;
+    if (ev->type == TGE_EVENT_TEXT) {
+        if (ev->data.text.codepoint == 13) {
+            enter = true;
+        } else if (ev->data.text.codepoint == 'q' ||
+                   ev->data.text.codepoint == 'Q') {
+            TGE_Quit(g_app);
+            return;
+        }
     } else if (ev->type == TGE_EVENT_KEYDOWN &&
                ev->data.key.keycode == TGE_KEY_ENTER) {
         enter = true;

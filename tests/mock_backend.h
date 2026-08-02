@@ -15,6 +15,7 @@ typedef struct {
     int presented_full;
     TGE_Cell captured[128];
     int captured_count;
+    char title[64];
 } MockData;
 
 static inline bool mock_init(void *d, int w, int h)
@@ -70,6 +71,13 @@ static inline uint64_t mock_ticks(void *d)
     return ((MockData *)d)->now_ms;
 }
 
+static inline void mock_set_title(void *d, const char *title)
+{
+    MockData *m = (MockData *)d;
+    if (title)
+        strncpy(m->title, title, sizeof(m->title) - 1);
+}
+
 static inline void mock_set_input(MockData *m, const char *bytes, int len)
 {
     m->input = bytes;
@@ -95,7 +103,7 @@ static inline TGE_Backend *mock_backend_create(MockData **out)
     b->present = mock_present;
     b->read_input = mock_read_input;
     b->ticks = mock_ticks;
-    b->set_title = NULL;
+    b->set_title = mock_set_title;
     if (out)
         *out = m;
     return b;

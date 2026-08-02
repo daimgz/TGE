@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+/* Event types reported through TGE_PollEvent and scene/app callbacks. */
 typedef enum {
     TGE_EVENT_NONE = 0,
     TGE_EVENT_KEYDOWN,
@@ -21,17 +22,22 @@ typedef enum {
     TGE_EVENT_USER,
 } TGE_EventType;
 
+/* Modifier masks for TGE_Event.key.mod. */
 #define TGE_MOD_NONE    0
 #define TGE_MOD_SHIFT  (1<<0)
 #define TGE_MOD_ALT    (1<<1)
 #define TGE_MOD_CTRL   (1<<2)
 
+/* Timer firing order; HIGH timers fire before NORMAL/LOW ones. */
 typedef enum {
     TGE_TIMER_HIGH   = 0,
     TGE_TIMER_NORMAL = 1,
     TGE_TIMER_LOW    = 2,
 } TGE_TimerPriority;
 
+/* Keycodes. ASCII values are used for printable keys and common control
+ * keys; TGE_KEY_UP..TGE_KEY_F12 use dedicated values >= 256 that do not
+ * collide with UTF-8 encoded input. */
 #define TGE_KEY_UNKNOWN     0
 #define TGE_KEY_ESC         27
 #define TGE_KEY_ENTER       13
@@ -61,6 +67,9 @@ typedef enum {
 #define TGE_KEY_F11        276
 #define TGE_KEY_F12        277
 
+/* A single input, timer or window event. Only the `data` union member that
+ * matches `type` is valid; for TGE_EVENT_TIMER the id/priority identify the
+ * scheduled timer that fired. */
 typedef struct {
     TGE_EventType type;
     union {

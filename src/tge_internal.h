@@ -14,6 +14,7 @@
 #define TGE_SCHED_MAX_TIMERS 256
 #define TGE_SCENE_MAX 16
 #define TGE_SCENE_OPS_MAX 32
+#define TGE_APP_EVENT_PENDING 16
 
 typedef struct {
     int y;
@@ -88,6 +89,8 @@ struct TGE_App {
     tge_update_fn update_cb;
     tge_draw_fn draw_cb;
     tge_event_fn event_cb;
+    TGE_Event app_events[TGE_APP_EVENT_PENDING];
+    int app_event_count;
 };
 
 /* ── Backend ─────────────────────────────────────────── */

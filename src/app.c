@@ -31,6 +31,16 @@ static void handle_events(TGE_App *app, double now)
     TGE_Runtime *rt = app->runtime;
     TGE_Event ev;
 
+    for (int i = 0; i < app->app_event_count; i++) {
+        if (app->app_events[i].type == TGE_EVENT_QUIT) {
+            app->quit = true;
+            app->app_event_count = 0;
+            return;
+        }
+        dispatch_event(app, &app->app_events[i]);
+    }
+    app->app_event_count = 0;
+
     tge_runtime_pump_input(rt);
     while (tge_runtime_poll_queued(rt, &ev)) {
         if (ev.type == TGE_EVENT_RESIZE) {
@@ -164,6 +174,7 @@ TGE_App *tge_app_create_with_runtime(TGE_Runtime *rt, int width, int height)
         return NULL;
     }
     app->fps = 60.0f;
+    app->last_time = (double)tge_runtime_ticks(rt) / 1000.0;
     return app;
 }
 
@@ -215,6 +226,25 @@ bool TGE_PollEvent(TGE_App *app, TGE_Event *ev)
         return false;
     tge_runtime_pump_input(app->runtime);
     return tge_runtime_poll_queued(app->runtime, ev);
+}
+
+void TGE_PushEvent(TGE_App *app, const TGE_Event *ev)
+{
+    if (!app || !ev || app->app_event_count >= TGE_APP_EVENT_PENDING)
+        return;
+    app->app_events[app->app_event_count++] = *ev;
+}
+
+void TGE_SetFPS(TGE_App *app, float fps)
+{
+    if (app)
+        app->fps = fps;
+}
+
+void TGE_SetTitle(TGE_App *app, const char *title)
+{
+    if (app && app->runtime && title)
+        tge_runtime_set_title(app->runtime, title);
 }
 
 TGE_Canvas *TGE_GetCanvas(TGE_App *app)

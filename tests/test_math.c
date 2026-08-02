@@ -69,6 +69,32 @@ TGE_TEST(circle_intersects)
                "far away");
 }
 
+TGE_TEST(vec2_normalize)
+{
+    TGE_Vector2 n = tge_vec2_normalize(tge_vec2(3.0f, 4.0f));
+    TGE_ASSERT(fabsf(n.x - 0.6f) < 1e-6f && fabsf(n.y - 0.8f) < 1e-6f,
+               "unit length direction");
+    TGE_Vector2 z = tge_vec2_normalize(tge_vec2(0.0f, 0.0f));
+    TGE_ASSERT(z.x == 0.0f && z.y == 0.0f, "zero vector stays zero");
+    TGE_Vector2 u = tge_vec2_normalize(tge_vec2(1.0f, 0.0f));
+    TGE_ASSERT(fabsf(tge_vec2_length(u) - 1.0f) < 1e-6f, "length 1");
+}
+
+TGE_TEST(segments_intersect)
+{
+    TGE_Vector2 a = tge_vec2(0, 0), b = tge_vec2(10, 10);
+    TGE_Vector2 c = tge_vec2(0, 10), d = tge_vec2(10, 0);
+    TGE_ASSERT(tge_segments_intersect(a, b, c, d), "crossing segments");
+    TGE_ASSERT(tge_segments_intersect(a, b, tge_vec2(5, 0), tge_vec2(5, 5)),
+               "endpoint touch counts as intersect");
+    TGE_ASSERT(tge_segments_intersect(a, b, a, c),
+               "shared origin intersects");
+    TGE_ASSERT(!tge_segments_intersect(a, b, tge_vec2(5, 6), tge_vec2(6, 7)),
+               "non-collinear disjoint no intersect");
+    TGE_ASSERT(!tge_segments_intersect(a, b, c, c),
+               "degenerate point segment no intersect");
+}
+
 int main(void)
 {
     test_vec2_basic();
@@ -77,5 +103,7 @@ int main(void)
     test_rect_contains();
     test_rect_intersects();
     test_circle_intersects();
+    test_vec2_normalize();
+    test_segments_intersect();
     return tge_test_report();
 }

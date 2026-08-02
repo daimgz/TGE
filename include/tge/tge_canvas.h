@@ -8,11 +8,14 @@
 extern "C" {
 #endif
 
+/* How a TGE_Color payload is interpreted. */
 typedef enum {
     TGE_COLOR_MODE_INDEXED = 0,
     TGE_COLOR_MODE_RGB     = 1,
 } TGE_ColorMode;
 
+/* A terminal color. Indexed mode selects one of the 8 ANSI palette slots;
+ * RGB mode uses 24-bit color (when the terminal supports it). */
 typedef struct {
     uint8_t mode;
     union {
@@ -21,6 +24,9 @@ typedef struct {
     } data;
 } TGE_Color;
 
+/* Predefined indexed palette colors. These are compound literals, which are
+ * not valid in static/const initializers; build runtime values through
+ * tge_color_indexed() instead. */
 #define TGE_COLOR_BLACK   ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 0 })
 #define TGE_COLOR_RED     ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 1 })
 #define TGE_COLOR_GREEN   ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 2 })
@@ -30,6 +36,12 @@ typedef struct {
 #define TGE_COLOR_CYAN    ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 6 })
 #define TGE_COLOR_WHITE   ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 7 })
 
+/* Color constructors. */
+TGE_Color tge_color_indexed(uint8_t index); /* Palette entry [0..7]; see TGE_COLOR_*. */
+TGE_Color tge_color_rgb(uint8_t r, uint8_t g, uint8_t b); /* 24-bit RGB (subject to terminal support). */
+
+/* A single screen cell: a Unicode codepoint plus foreground/background
+ * color and attribute flags. */
 typedef struct TGE_Cell {
     uint32_t ch;
     TGE_Color fg;
@@ -58,6 +70,10 @@ void tge_draw_line(TGE_Canvas *canvas, int x1, int y1, int x2, int y2,
                    uint32_t ch, TGE_Color fg, TGE_Color bg);
 void tge_draw_circle(TGE_Canvas *canvas, int cx, int cy, int r,
                      uint32_t ch, TGE_Color fg, TGE_Color bg);
+
+/* Copies the visible region of src into dst starting at (dx, dy), clipping
+ * to both canvases. All draw calls clip implicitly. */
+void tge_blit(TGE_Canvas *dst, int dx, int dy, const TGE_Canvas *src);
 
 #ifdef __cplusplus
 }

@@ -272,6 +272,44 @@ TGE_TEST(canvas_resize)
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(color_constructors)
+{
+    TGE_Color ci = tge_color_indexed(5);
+    TGE_ASSERT(ci.mode == TGE_COLOR_MODE_INDEXED, "indexed mode");
+    TGE_ASSERT(ci.data.index == 5, "index value");
+    TGE_Color cr = tge_color_rgb(10, 20, 30);
+    TGE_ASSERT(cr.mode == TGE_COLOR_MODE_RGB, "rgb mode");
+    TGE_ASSERT(cr.data.rgb.r == 10 && cr.data.rgb.g == 20 &&
+               cr.data.rgb.b == 30, "rgb values");
+}
+
+TGE_TEST(blit_copies_and_clips)
+{
+    TGE_Canvas *dst = make_canvas(8, 4);
+    TGE_Canvas *src = make_canvas(3, 2);
+    tge_clear(dst, '.', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_clear(src, 'X', TGE_COLOR_RED, TGE_COLOR_GREEN);
+    tge_blit(dst, 5, 2, src);
+    TGE_ASSERT(cell_at(dst, 5, 2)->ch == 'X', "blit base");
+    TGE_ASSERT(cell_at(dst, 7, 3)->ch == 'X', "blit corner");
+    TGE_ASSERT(cell_at(dst, 4, 2)->ch == '.', "no spill before");
+    TGE_ASSERT(cell_at(dst, 5, 1)->ch == '.', "no spill above");
+    /* partial clip off right and bottom */
+    tge_clear(dst, '.', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_blit(dst, 7, 3, src);
+    TGE_ASSERT(cell_at(dst, 7, 3)->ch == 'X', "visible corner after clip");
+    TGE_ASSERT(cell_at(dst, 7, 2)->ch == '.', "clipped beyond bottom");
+    /* negative offset clip */
+    tge_clear(dst, '.', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_blit(dst, -1, 0, src);
+    TGE_ASSERT(cell_at(dst, 0, 0)->ch == 'X', "first visible col on neg x");
+    TGE_ASSERT(cell_at(dst, 1, 0)->ch == 'X', "second col visible");
+    TGE_ASSERT(cell_at(dst, 2, 0)->ch == '.', "src col 3 not present (clipped)");
+    TGE_ASSERT(cell_at(dst, 0, 1)->ch == 'X', "second row copied");
+    tge_canvas_destroy(dst);
+    tge_canvas_destroy(src);
+}
+
 int main(void)
 {
     test_create_destroy();
@@ -296,5 +334,7 @@ int main(void)
     test_draw_circle_basic();
     test_draw_circle_zero_radius();
     test_canvas_resize();
+    test_color_constructors();
+    test_blit_copies_and_clips();
     return tge_test_report();
 }

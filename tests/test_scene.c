@@ -20,6 +20,7 @@ typedef struct {
 static int g_trace[8];
 static int g_trace_count = 0;
 static int g_inits = 0;
+static int g_destroys = 0;
 static TGE_App *g_app = NULL;
 static TGE_Scene *g_scene_b = NULL;
 
@@ -52,6 +53,12 @@ static void sc_init(TGE_Scene *sc)
 {
     (void)sc;
     g_inits++;
+}
+
+static void sc_destroy(TGE_Scene *sc)
+{
+    (void)sc;
+    g_destroys++;
 }
 
 static void sc_update(TGE_Scene *sc, float dt)
@@ -249,6 +256,41 @@ TGE_TEST(events_go_to_top_scene)
     free_scene(b);
 }
 
+TGE_TEST(destroy_called_on_pop_and_replace)
+{
+    MockData *m;
+    TGE_App *app = make_test_app(&m);
+    TGE_Scene *a = make_scene(1);
+    TGE_Scene *b = make_scene(2);
+    TGE_Scene *c = make_scene(3);
+    a->destroy = sc_destroy;
+    b->destroy = sc_destroy;
+    c->destroy = sc_destroy;
+    g_destroys = 0;
+
+    TGE_PushScene(app, a);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(g_destroys == 0, "no destroy on push");
+
+    TGE_PopScene(app);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(g_destroys == 1, "destroy called on pop");
+
+    TGE_PushScene(app, b);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(g_destroys == 1, "still one destroy");
+
+    TGE_ReplaceScene(app, c);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(g_destroys == 2, "destroy called on replace old");
+    TGE_ASSERT(app->scene_count == 1 && app->scenes[0] == c, "replace applied");
+
+    TGE_Destroy(app);
+    free_scene(a);
+    free_scene(b);
+    free_scene(c);
+}
+
 TGE_TEST(pop_during_event_applied_after_frame)
 {
     MockData *m;
@@ -303,6 +345,7 @@ int main(void)
 {
     test_push_pop_replace_deferred();
     test_init_called_on_apply();
+    test_destroy_called_on_pop_and_replace();
     test_top_scene_updated_and_drawn();
     test_draw_bottom_to_top_opaque_stops();
     test_transparent_scene_does_not_hide();

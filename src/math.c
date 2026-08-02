@@ -12,6 +12,17 @@ float tge_vec2_distance(TGE_Vector2 a, TGE_Vector2 b)
     return sqrtf(dx * dx + dy * dy);
 }
 
+TGE_Vector2 tge_vec2_normalize(TGE_Vector2 v)
+{
+    float len = tge_vec2_length(v);
+    if (len < 0.000001f) {
+        TGE_Vector2 zero = {0.0f, 0.0f};
+        return zero;
+    }
+    TGE_Vector2 r = {v.x / len, v.y / len};
+    return r;
+}
+
 bool tge_rect_contains(TGE_Rect r, int x, int y)
 {
     return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
@@ -64,4 +75,23 @@ bool tge_circle_intersects(TGE_Vector2 center, float r, TGE_Rect rect)
     float dx = center.x - nearest_x;
     float dy = center.y - nearest_y;
     return (dx * dx + dy * dy) <= (r * r);
+}
+
+static float cross2(float ax, float ay, float bx, float by)
+{
+    return ax * by - ay * bx;
+}
+
+bool tge_segments_intersect(TGE_Vector2 p1, TGE_Vector2 p2,
+                            TGE_Vector2 q1, TGE_Vector2 q2)
+{
+    float r1x = p2.x - p1.x, r1y = p2.y - p1.y;
+    float r2x = q2.x - q1.x, r2y = q2.y - q1.y;
+    float d = cross2(r1x, r1y, r2x, r2y);
+    if (d == 0.0f)
+        return false;
+    float dx = q1.x - p1.x, dy = q1.y - p1.y;
+    float t = cross2(dx, dy, r2x, r2y) / d;
+    float u = cross2(dx, dy, r1x, r1y) / d;
+    return t >= 0.0f && t <= 1.0f && u >= 0.0f && u <= 1.0f;
 }

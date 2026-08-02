@@ -14,6 +14,10 @@ tests/test_renderer
 tests/test_runtime
 tests/test_scene
 tests/test_scheduler
+tests/test_app
+tests/test_entity
+tests/test_animation
+tests/test_collision
 tests/check_no_malloc
 fuzz/fuzz_*
 benchmarks/bench_*
@@ -24,5 +28,8 @@ examples/min/03_timer
 examples/min/04_colors
 examples/min/05_resize
 examples/min/06_mouse
+examples/min/07_extra_demo
 examples/games/01_snake
 examples/games/02_pong
+examples/games/03_tetris
+examples/games/04_space_invaders

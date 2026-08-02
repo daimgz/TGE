@@ -231,3 +231,39 @@ void tge_draw_circle(TGE_Canvas *canvas, int cx, int cy, int r,
     }
     tge_set_cell(canvas, cx, cy, ch, fg, bg);
 }
+
+TGE_Color tge_color_indexed(uint8_t index)
+{
+    TGE_Color c = {0};
+    c.mode = TGE_COLOR_MODE_INDEXED;
+    c.data.index = index;
+    return c;
+}
+
+TGE_Color tge_color_rgb(uint8_t r, uint8_t g, uint8_t b)
+{
+    TGE_Color c = {0};
+    c.mode = TGE_COLOR_MODE_RGB;
+    c.data.rgb.r = r;
+    c.data.rgb.g = g;
+    c.data.rgb.b = b;
+    return c;
+}
+
+void tge_blit(TGE_Canvas *dst, int dx, int dy, const TGE_Canvas *src)
+{
+    if (!dst || !dst->cells || !src || !src->cells)
+        return;
+    for (int y = 0; y < src->height; y++) {
+        int oy = dy + y;
+        if (oy < 0 || oy >= dst->height)
+            continue;
+        for (int x = 0; x < src->width; x++) {
+            int ox = dx + x;
+            if (ox < 0 || ox >= dst->width)
+                continue;
+            dst->cells[(size_t)oy * (size_t)dst->width + (size_t)ox] =
+                src->cells[(size_t)y * (size_t)src->width + (size_t)x];
+        }
+    }
+}
