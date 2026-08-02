@@ -1,23 +1,32 @@
 CC = gcc
 CFLAGS = -std=c99 -Wall -Wextra -pedantic -g -O0
-INCLUDES = -Iinclude
+INCLUDES = -Iinclude -I.
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:.c=.o)
 TARGET = libtge.a
+EXTRA_SRC = $(wildcard tge-extra/*.c)
+EXTRA_OBJ = $(EXTRA_SRC:.c=.o)
+EXTRA_TARGET = libtge-extra.a
 
-.PHONY: all clean test examples games bench fuzz valgrind check_no_malloc
+.PHONY: all clean test check_headers examples games bench fuzz valgrind check_no_malloc
 
-all: $(TARGET)
+all: $(TARGET) $(EXTRA_TARGET)
 
 $(TARGET): $(OBJ)
+	ar rcs $@ $^
+
+$(EXTRA_TARGET): $(EXTRA_OBJ)
 	ar rcs $@ $^
 
 src/%.o: src/%.c include/tge/tge.h
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
+tge-extra/%.o: tge-extra/%.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
 TEST_BINS = $(patsubst %.c,%,$(wildcard tests/test_*.c))
 
-test: $(TARGET) $(TEST_BINS) tests/check_no_malloc
+test: $(TARGET) $(EXTRA_TARGET) $(TEST_BINS) tests/check_no_malloc check_headers
 	./tests/check_no_malloc
 	@ok=0; fail=0; \
 	for t in $(TEST_BINS); do \
@@ -30,8 +39,8 @@ test: $(TARGET) $(TEST_BINS) tests/check_no_malloc
 	printf "$$ok suites passed, $$fail suites failed\n"; \
 	[ $$fail -eq 0 ]
 
-tests/test_%: tests/test_%.c $(TARGET)
-	$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge -lm -o $@
+tests/test_%: tests/test_%.c $(TARGET) $(EXTRA_TARGET)
+	$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge-extra -ltge -lm -o $@
 
 tests/check_no_malloc: tests/check_no_malloc.c $(TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge -lm \
@@ -40,10 +49,26 @@ tests/check_no_malloc: tests/check_no_malloc.c $(TARGET)
 check_no_malloc: tests/check_no_malloc
 	./tests/check_no_malloc
 
-examples: $(TARGET) examples/min/00_runtime_only examples/min/01_draw_text examples/min/02_input_keys examples/min/03_timer examples/min/04_colors examples/min/05_resize examples/min/06_mouse
+check_headers: $(TARGET)
+	@for h in include/tge/*.h; do \
+		probe=$$(mktemp /tmp/tge_hdr_XXX.c); \
+		printf '#include <tge/%s>\nint main(void){return 0;}\n' "$$(basename $$h)" > $$probe; \
+		printf "  HC $$h\n"; \
+		$(CC) $(CFLAGS) $(INCLUDES) $$probe -o /dev/null || { rm -f $$probe; exit 1; }; \
+		rm -f $$probe; \
+	done
+	@for h in tge-extra/*.h; do \
+		probe=$$(mktemp /tmp/tge_xhdr_XXX.c); \
+		printf '#include <tge-extra/%s>\nint main(void){return 0;}\n' "$$(basename $$h)" > $$probe; \
+		printf "  HC $$h\n"; \
+		$(CC) $(CFLAGS) $(INCLUDES) $$probe -o /dev/null || { rm -f $$probe; exit 1; }; \
+		rm -f $$probe; \
+	done
 
-examples/min/%: examples/min/%.c $(TARGET)
-	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge -lm -o $@
+examples: $(TARGET) examples/min/00_runtime_only examples/min/01_draw_text examples/min/02_input_keys examples/min/03_timer examples/min/04_colors examples/min/05_resize examples/min/06_mouse examples/min/07_extra_demo
+
+examples/min/%: examples/min/%.c $(TARGET) $(EXTRA_TARGET)
+	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
 
 games: $(TARGET) examples/games/01_snake examples/games/02_pong
 
@@ -73,10 +98,10 @@ valgrind: test
 	@echo "  (requires glibc debug symbols, e.g. libc6-dbg on Debian/Ubuntu)"
 
 clean:
-	rm -f $(OBJ) $(TARGET)
+	rm -f $(OBJ) $(TARGET) $(EXTRA_OBJ) $(EXTRA_TARGET)
 	rm -f $(TEST_BINS)
 	rm -f tests/check_no_malloc
 	rm -f fuzz/fuzz_parser
 	rm -f benchmarks/bench_renderer benchmarks/bench_canvas_fill benchmarks/bench_draw_line
-	rm -f examples/min/00_runtime_only examples/min/01_draw_text examples/min/02_input_keys examples/min/03_timer examples/min/04_colors examples/min/05_resize examples/min/06_mouse
+	rm -f examples/min/00_runtime_only examples/min/01_draw_text examples/min/02_input_keys examples/min/03_timer examples/min/04_colors examples/min/05_resize examples/min/06_mouse examples/min/07_extra_demo
 	rm -f examples/games/01_snake examples/games/02_pong
