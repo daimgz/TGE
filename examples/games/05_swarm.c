@@ -551,8 +551,6 @@ static void game_destroy(TGE_Scene *scene)
 {
     Game *g = (Game *)scene->userdata;
     game_free(g);
-    free(g);
-    free(scene);
 }
 
 static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
@@ -595,15 +593,10 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
         return;
     }
     if (enter) {
-        TGE_Scene *game = (TGE_Scene *)calloc(1, sizeof(TGE_Scene));
-        Game *g = (Game *)calloc(1, sizeof(Game));
+        TGE_Scene *game = NULL;
+        Game *g = (Game *)tge_scene_create(&game, sizeof(Game), game_update,
+                                           game_draw, game_event, game_destroy);
         game_reset(g);
-        game->userdata = g;
-        game->opaque = true;
-        game->update = game_update;
-        game->draw = game_draw;
-        game->event = game_event;
-        game->destroy = game_destroy;
         g_game = game;
         TGE_PushScene(g_app, game);
     }
@@ -612,22 +605,11 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
 static void init_app(TGE_App *app)
 {
     g_app = app;
-    TGE_Scene *title = (TGE_Scene *)calloc(1, sizeof(TGE_Scene));
+    TGE_Scene *title = NULL;
+    tge_scene_create(&title, 0, NULL, title_draw, title_event, NULL);
     title->opaque = false;
-    title->draw = title_draw;
-    title->event = title_event;
     g_title = title;
     TGE_PushScene(app, title);
-}
-
-static void cleanup_scene(TGE_Scene *sc)
-{
-    if (!sc)
-        return;
-    if (sc->destroy)
-        sc->destroy(sc);
-    else
-        free(sc);
 }
 
 int main(void)
@@ -636,8 +618,8 @@ int main(void)
     if (!app)
         return 1;
     TGE_Run(app, init_app, NULL, NULL, NULL);
-    cleanup_scene(g_game);
-    cleanup_scene(g_title);
+    tge_scene_destroy(g_game);
+    tge_scene_destroy(g_title);
     TGE_Destroy(app);
     return 0;
 }

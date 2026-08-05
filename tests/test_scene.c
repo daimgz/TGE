@@ -21,6 +21,7 @@ static int g_trace[8];
 static int g_trace_count = 0;
 static int g_inits = 0;
 static int g_destroys = 0;
+static int g_created_destroys = 0;
 static TGE_App *g_app = NULL;
 static TGE_Scene *g_scene_b = NULL;
 
@@ -94,6 +95,67 @@ static void event_pops(TGE_Scene *sc, TGE_Event *ev)
     (void)sc;
     (void)ev;
     TGE_PopScene(g_app);
+}
+
+static void created_destroy(TGE_Scene *scene)
+{
+    (void)scene;
+    g_created_destroys++;
+}
+
+TGE_TEST(scene_create_wires_and_destroys)
+{
+    TGE_Scene *sc = NULL;
+    Rec *r = (Rec *)tge_scene_create(&sc, sizeof(Rec), sc_update, sc_draw,
+                                     sc_event, created_destroy);
+    TGE_ASSERT(sc != NULL, "scene out");
+    TGE_ASSERT(r != NULL && r == sc->userdata, "userdata returned and wired");
+    TGE_ASSERT(sc->opaque == true, "opaque by default");
+    TGE_ASSERT(sc->update == sc_update, "update wired");
+    TGE_ASSERT(sc->draw == sc_draw, "draw wired");
+    TGE_ASSERT(sc->event == sc_event, "event wired");
+    TGE_ASSERT(sc->destroy != NULL, "destroy trampoline set");
+    g_created_destroys = 0;
+    tge_scene_destroy(sc);
+    TGE_ASSERT(g_created_destroys == 1, "user destroy invoked");
+    tge_scene_destroy(NULL);
+}
+
+TGE_TEST(scene_create_zero_userdata)
+{
+    TGE_Scene *sc = NULL;
+    void *ud = tge_scene_create(&sc, 0, NULL, sc_draw, NULL, NULL);
+    TGE_ASSERT(ud == NULL, "no userdata pointer for size 0");
+    TGE_ASSERT(sc != NULL && sc->userdata == NULL, "scene valid, userdata null");
+    TGE_ASSERT(sc->opaque == true, "opaque by default");
+    TGE_ASSERT(sc->update == NULL && sc->event == NULL, "only draw wired");
+    tge_scene_destroy(sc);
+}
+
+TGE_TEST(scene_create_pop_frees)
+{
+    MockData *m;
+    TGE_App *app = make_test_app(&m);
+    TGE_Scene *sc = NULL;
+    Rec *r = (Rec *)tge_scene_create(&sc, sizeof(Rec), sc_update, sc_draw,
+                                     sc_event, created_destroy);
+    r->id = 42;
+    g_created_destroys = 0;
+    TGE_PushScene(app, sc);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(app->scene_count == 1, "pushed");
+
+    TGE_PopScene(app);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(g_created_destroys == 1, "destroyed on pop");
+    TGE_ASSERT(app->scene_count == 0, "popped");
+    TGE_Destroy(app);
+}
+
+TGE_TEST(scene_create_null_out)
+{
+    TGE_ASSERT(tge_scene_create(NULL, 4, NULL, NULL, NULL, NULL) == NULL,
+               "NULL out rejected");
 }
 
 TGE_TEST(push_pop_replace_deferred)
@@ -345,6 +407,10 @@ int main(void)
 {
     test_push_pop_replace_deferred();
     test_init_called_on_apply();
+    test_scene_create_wires_and_destroys();
+    test_scene_create_zero_userdata();
+    test_scene_create_pop_frees();
+    test_scene_create_null_out();
     test_destroy_called_on_pop_and_replace();
     test_top_scene_updated_and_drawn();
     test_draw_bottom_to_top_opaque_stops();

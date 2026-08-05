@@ -2,6 +2,7 @@
 #define TGE_SCENE_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include "tge_canvas.h"
 #include "tge_events.h"
 #include "tge_app.h"
@@ -39,6 +40,22 @@ void TGE_PushScene(TGE_App *app, TGE_Scene *scene);
 void TGE_PopScene(TGE_App *app);
 /* Replaces the top scene with `scene` (destroying the old one). */
 void TGE_ReplaceScene(TGE_App *app, TGE_Scene *scene);
+
+/* Convenience constructor for heap-allocated scenes. Allocates the scene and
+ * a zeroed `userdata` block of `userdata_size` bytes in one call, wires the
+ * callbacks (any may be NULL) and marks the scene opaque. Returns the
+ * userdata pointer (NULL when `userdata_size` is 0); the scene is stored in
+ * *out. The `destroy` callback only frees deeper resources (the block itself
+ * is owned by the scene). Hand this scene to TGE_PushScene/TGE_ReplaceScene
+ * or to tge_scene_destroy; either path frees everything. */
+void *tge_scene_create(TGE_Scene **out, size_t userdata_size,
+                       tge_scene_update_fn update, tge_scene_draw_fn draw,
+                       tge_scene_event_fn event, tge_scene_destroy_fn destroy);
+
+/* Frees a scene and its userdata. Calls the scene's `destroy` callback first
+ * (which must NOT free the scene or its userdata), falling back to a plain
+ * free for scenes built manually. No-op on NULL. */
+void tge_scene_destroy(TGE_Scene *scene);
 
 #ifdef __cplusplus
 }

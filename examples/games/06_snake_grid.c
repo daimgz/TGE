@@ -353,8 +353,6 @@ static void game_destroy(TGE_Scene *scene)
 {
     SnakeGame *g = (SnakeGame *)scene->userdata;
     free(g->world.body);
-    free(g);
-    free(scene);
 }
 
 static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
@@ -395,19 +393,15 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
         return;
     }
     if (tge_input_confirm(ev)) {
-        TGE_Scene *game = (TGE_Scene *)calloc(1, sizeof(TGE_Scene));
-        SnakeGame *g = (SnakeGame *)calloc(1, sizeof(SnakeGame));
+        TGE_Scene *game = NULL;
+        SnakeGame *g = (SnakeGame *)tge_scene_create(
+            &game, sizeof(SnakeGame), game_update, game_draw, game_event,
+            game_destroy);
         g->renderer.theme = &SNAKE_THEME;
         tge_grid_view_init(&g->renderer.view, NULL, &SNAKE_THEME,
                            TGE_GRID_SCALE_2X1);
         tge_grid_set_origin(&g->renderer.view.grid, 0, 1);
         world_init(&g->world);
-        game->userdata = g;
-        game->opaque = true;
-        game->update = game_update;
-        game->draw = game_draw;
-        game->event = game_event;
-        game->destroy = game_destroy;
         g_game = game;
         TGE_PushScene(g_app, game);
     }
@@ -416,22 +410,11 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
 static void init_app(TGE_App *app)
 {
     g_app = app;
-    TGE_Scene *title = (TGE_Scene *)calloc(1, sizeof(TGE_Scene));
+    TGE_Scene *title = NULL;
+    tge_scene_create(&title, 0, NULL, title_draw, title_event, NULL);
     title->opaque = false;
-    title->draw = title_draw;
-    title->event = title_event;
     g_title = title;
     TGE_PushScene(app, title);
-}
-
-static void cleanup_scene(TGE_Scene *sc)
-{
-    if (!sc)
-        return;
-    if (sc->destroy)
-        sc->destroy(sc);
-    else
-        free(sc);
 }
 
 int main(void)
@@ -443,8 +426,8 @@ int main(void)
     if (!app)
         return 1;
     TGE_Run(app, init_app, NULL, NULL, NULL);
-    cleanup_scene(g_game);
-    cleanup_scene(g_title);
+    tge_scene_destroy(g_game);
+    tge_scene_destroy(g_title);
     TGE_Destroy(app);
     return 0;
 }
