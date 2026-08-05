@@ -31,7 +31,10 @@
  *     SUBSTEP_CELLS (0.25) cells, so the ball can never skip a brick cell
  *     no matter the frame rate or speed.
  *   - The paddle reflects the ball with an angle from the hit offset (the
- *     Pong pattern), keeping speed constant.
+ *     classic Breakout pattern): rel in [-1, 1] maps to the launch angle off
+ *     the vertical, so a center hit goes straight up and a side hit leaves
+ *     diagonally toward the side it hit. Speed stays constant. The bounce is
+ *     detected the same way as the bricks, by crossing the paddle surface.
  */
 #include "tge/tge.h"
 
@@ -53,10 +56,10 @@
 #define PADDLE_W 5
 #define PADDLE_SPEED 9.0f
 #define KEY_HOLD 0.12f /* Pong-style hold: auto-release without key repeat */
-#define BALL_SPEED 5.5f
-#define MAX_BALL_SPEED 9.0f
+#define BALL_SPEED 8.5f
+#define MAX_BALL_SPEED 13.0f
 #define LEVEL_SPEED_UP 0.7f
-#define MAX_VY_RATIO 0.8f
+#define PADDLE_MAX_ANGLE 1.22173f /* ~70 deg off the vertical, in radians */
 #define BRICK_ROWS 4
 #define BRICK_POINTS 10
 #define SUBSTEP_CELLS 0.25f /* max ball travel per physics sub-step */
@@ -142,7 +145,7 @@ static void world_build_bricks(BreakoutWorld *w)
 static void world_serve(BreakoutWorld *w)
 {
     w->bx = w->px;
-    w->by = (float)world_paddle_y(w) - 0.5f;
+    w->by = (float)world_paddle_y(w) - 1.0f; /* ball sits on the paddle */
     w->bvx = 0.0f;
     w->bvy = 0.0f;
     w->state = BREAKOUT_SERVE;
@@ -157,8 +160,12 @@ static void world_launch(BreakoutWorld *w)
     w->state = BREAKOUT_RUNNING;
 }
 
-/* Paddle reflect with the angle coming from the offset of the hit (Pong
- * pattern); speed magnitude stays the level speed. */
+/* Paddle reflect: the hit offset picks the launch angle, so the ball comes
+ * off the side it hit (classic Breakout) and speed magnitude stays the level
+ * speed. rel is the hit position across the paddle in [-1, 1]; it maps to an
+ * angle of at most PADDLE_MAX_ANGLE off the vertical. The collision line is
+ * the paddle's top surface (paddle_y - 1.0 at the ball center), so the ball
+ * rests with its bottom edge on the paddle instead of sinking into it. */
 static void reflect_paddle(BreakoutWorld *w)
 {
     float speed = world_ball_speed(w);
@@ -167,11 +174,10 @@ static void reflect_paddle(BreakoutWorld *w)
         rel = 1.0f;
     else if (rel < -1.0f)
         rel = -1.0f;
-    float vy = rel * speed * MAX_VY_RATIO;
-    float vx = sqrtf(speed * speed - vy * vy);
-    w->bvx = (w->bvx < 0.0f) ? -vx : vx;
-    w->bvy = -vy;
-    w->by = (float)world_paddle_y(w) + 0.5f;
+    float angle = rel * PADDLE_MAX_ANGLE;
+    w->bvx = sinf(angle) * speed;
+    w->bvy = -cosf(angle) * speed;
+    w->by = (float)world_paddle_y(w) - 1.0f; /* bottom edge on the paddle */
 }
 
 static void world_level_up(BreakoutWorld *w)
@@ -209,8 +215,8 @@ static void world_ball_move(BreakoutWorld *w, float dt)
     float paddle_y = (float)world_paddle_y(w);
     float p_left = w->px - PADDLE_W / 2.0f;
     float p_right = w->px + PADDLE_W / 2.0f;
-    if (w->bvy > 0.0f && w->by >= paddle_y + 0.5f &&
-        w->by < paddle_y + 1.5f && w->bx + 0.5f > p_left &&
+    if (w->bvy > 0.0f && prev_by <= paddle_y - 1.0f &&
+        w->by >= paddle_y - 1.0f && w->bx + 0.5f > p_left &&
         w->bx - 0.5f < p_right) {
         reflect_paddle(w);
         return;
@@ -281,7 +287,7 @@ static void world_update(BreakoutWorld *w, float dt)
 
     if (w->state == BREAKOUT_SERVE) {
         w->bx = w->px; /* the ball follows the paddle while waiting */
-        w->by = (float)world_paddle_y(w) - 0.5f;
+        w->by = (float)world_paddle_y(w) - 1.0f;
         return;
     }
     world_ball_step(w, dt);
@@ -321,7 +327,7 @@ static void world_resize_fix(BreakoutWorld *w)
         return;
     if (w->state == BREAKOUT_SERVE) {
         w->bx = w->px;
-        w->by = (float)world_paddle_y(w) - 0.5f;
+        w->by = (float)world_paddle_y(w) - 1.0f;
     } else {
         world_serve(w);
     }
@@ -378,7 +384,7 @@ typedef struct {
 static const TGE_Sprite SPR_EMPTY = { 2, 1, "  " };
 static const TGE_Sprite SPR_BRICK = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
 static const TGE_Sprite SPR_WALL = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite SPR_BALL = { 2, 1, "oo" };
+static const TGE_Sprite SPR_BALL = { 2, 1, "()" };
 static const TGE_Sprite SPR_PADDLE = { 2, 1, "\xE2\x96\x93\xE2\x96\x93" };
 static const TGE_Sprite SPR_SELECT = { 2, 1, "::" };
 
