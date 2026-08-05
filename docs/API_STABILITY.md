@@ -32,6 +32,32 @@ configuración sobre TGE_Grid) — se validan como consumidores de ejemplo en
 `examples/games/06_snake_grid.c` (`view` + `input_buffer` + `grid_view`),
 que es el ejemplo de referencia de la arquitectura world/renderer.
 
+Helpers de punto en `vec2i` (candidatos): `tge_vec2i_clamp_rect` (clamp a los
+límites inclusivos de un rect, usado en el resize de los snakes),
+`tge_rect_random_point` (punto aleatorio en un rect) y
+`tge_rect_translate_point` (mapeo local→global por el origen del rect).
+
+## Convención para agregar API
+
+**Solo se agrega una abstracción si elimina un patrón que apareció en al
+menos dos juegos** (regla del usuario, revisión 3). El core y tge-extra deben
+mantenerse como bibliotecas de bajo nivel; un helper justificado por uso real
+es bienvenido, un "helper por las dudas" no. Los helpers de dibujo del core
+(`tge_printf`, `tge_draw_centered_text`) y los de escena
+(`tge_scene_create`/`tge_scene_destroy`) entran por esta regla: el patrón que
+eliminan estaba en todos los juegos de ejemplo.
+
+## Funciones del core añadidas en revisión 3 (candidatas a 1.x)
+
+- `tge_printf()` — formato printf + `tge_draw_text` con buffer de pila fijo
+  (sin malloc, seguro para el render path).
+- `tge_draw_centered_text()` — texto centrado midiendo el ancho real en
+  columnas (wide chars cuentan doble).
+- `tge_scene_create()` / `tge_scene_destroy()` — escena heap + userdata en un
+  alloc con trampoline de destroy; `destroy` del usuario solo libera recursos
+  profundos, nunca el scene ni el userdata. El trampoline hace que
+  `TGE_PopScene`/`TGE_ReplaceScene` liberen todo.
+
 ## Versiones 0.x (pre-1.0)
 - Breaking changes permitidos en cualquier release.
 - Se anuncian en el changelog.

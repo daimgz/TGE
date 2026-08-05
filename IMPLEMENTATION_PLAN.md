@@ -988,6 +988,12 @@ Input: el snake deja de manejar `x`/`y` sueltos, `dx/dy` o keycodes a mano.
 2. Pueden usar la API pública de TGE (include/tge/*.h) pero no los internals.
 3. Pueden tener malloc en init/free (no están en el hot path).
 4. No hay dependencias entre módulos de tge-extra.
+5. **Solo se agrega una abstracción si elimina un patrón que apareció en al
+   menos dos juegos** (regla del usuario, revisión 3). Mantiene tge-extra
+   limpio y evita que se convierta en un framework gigante. Vale también
+   para el core: `tge_printf` (HUDs), `tge_draw_centered_text` (menús y game
+   over) y `tge_scene_create` (setup de escenas) se justifican porque el
+   patrón estaba en todos los juegos.
 
 ### Dependencias
 - Fase 2 (engine API)
@@ -1141,6 +1147,9 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Revisión 2: `tge_grid_size_for` / `tge_grid_view_size_for` (tamaño lógico para una superficie arbitraria, sin canvas) — reemplaza el `renderer_playfield` del Snake
 - [x] Revisión 2: `renderer_playfield` → `tge_grid_view_size_for`; `renderer_setup` → `renderer_bind` (sincroniza con el canvas actual, que el app intercambia cada frame); `GameState` → `SnakeGame`
 - [x] Revisión 2: `tge_printf()` en el core con tests y HUDs de todos los juegos migrados
+- [x] Revisión 3: `tge_draw_centered_text()` en el core — texto centrado midiendo ancho real (wide chars cuentan doble), con tests; reemplaza `(w - strlen)/2` en todos los juegos (queda solo el puntaje derecho de Pong, que es alineación derecha)
+- [x] Revisión 3: `tge_scene_create()`/`tge_scene_destroy()` en el core — escena + userdata en un solo alloc con trampoline de destroy; elimina `calloc`/wiring/`cleanup_scene` en 01/05/06 (resuelve el punto 1 de Pendiente/Diferido)
+- [x] Revisión 3: helpers de punto en tge-extra (`vec2i`): `tge_vec2i_clamp_rect` (clamp post-resize de los snakes), `tge_rect_random_point` (spawn de comida/oleadas) y `tge_rect_translate_point` (mapeo local→global al dibujar), con tests
 
 ---
 
@@ -1149,20 +1158,25 @@ representativos, asumiendo que las primitivas ya están validadas.
 El usuario pidió **anotar** esto antes de pasar a algo más urgente. No está
 bloqueado, solo diferido.
 
-### 1. Lifecycle de escenas en el core
+### 1. Lifecycle de escenas en el core — **hecho (revisión 3)**
 
-Objetivo: eliminar `g_title`/`g_game`/`cleanup_scene()` de todos los ejemplos.
-Diagnóstico ya confirmado en `src/app.c`/`src/scene.c`:
+Se resolvió con `tge_scene_create()`/`tge_scene_destroy()` en
+`include/tge/tge_scene.h` y `src/scene.c` (diagnóstico original abajo). Un
+`tge_scene_create()` asigna el struct `TGE_Scene` + el bloque de `userdata`
+en **una sola** llamada a `calloc`, cablea los callbacks, marca la escena
+opaca y setea `scene->destroy` a un trampoline interno que llama al
+`destroy` del usuario (que solo libera recursos profundos, p.ej. `body`) y
+luego libera el bloque completo. Así `TGE_PopScene`/`TGE_ReplaceScene` (que
+llaman a `destroy`) ya liberan todo, y `main()` termina con
+`tge_scene_destroy()` (que además es seguro con `destroy == NULL`).
 
-- `TGE_PopScene`/`TGE_ReplaceScene` llaman `destroy()` pero **nunca liberan el
-  struct `TGE_Scene`**; `TGE_Run` tampoco limpia la pila al salir.
-- Propuesta (opción A recomendada): `TGE_SceneCreate()` marca la escena como
-  `owned` (campo nuevo en el struct). El engine, al salir (`TGE_Run`) y en
-  pop/replace, llama `destroy()` y luego libera el struct solo si es `owned`.
-  Contrato nuevo: `destroy()` limpia solo `userdata`; el engine se encarga del
-  struct. Escenas `static` (02/03/04) no se tocan (destroy=NULL, owned=false).
-- Alternativas: solo llamar `destroy()` al salir (no basta para title heap);
-  o no tocar el core (helpers de escena como módulo tge-extra).
+Migrados los tres juegos que usaban el patrón heap (01_snake, 05_swarm,
+06_snake_grid); 02/03/04 usan escenas `static` + callback `init` y no se
+tocan (su `destroy == NULL` y `tge_scene_destroy` los libera bien).
+
+Diagnóstico original: `TGE_PopScene`/`TGE_ReplaceScene` llaman `destroy()`
+pero **nunca liberan el struct `TGE_Scene`**; `TGE_Run` tampoco limpia la
+pila al salir. Escenas `static` (02/03/04) no se tocan (destroy=NULL).
 
 ### 2. tge-extra Batch 3 (módulos de patrones, no utilidades sueltas)
 
@@ -1171,6 +1185,9 @@ Prioridad del usuario:
 2. Grid (`contains`/`inside`/`center`/`area`/`step`/`random_cell`) — el
    GridWalker va dentro de Grid (`tge_grid_step`).
 3. Random helpers (`tge_rand_seed`, `tge_rand_int(min,max)`).
+   **Parcial:** `tge_rect_random_point` (random point dentro de un rect,
+   basado en `rand()`) ya existe y lo usan 01/05/06; el seed/RNG propio queda
+   para cuando se necesite determinismo real.
 4. InputQueue de direcciones (DirQueue) — push/pop con semántica de input
    buffering. **Hecho (parcial):** realizado como `input_buffer.h`
    (`TGE_InputBuffer`, FIFO de capacidad fija, drop-new) y consumido por
@@ -1301,3 +1318,48 @@ El mundo recibe el rect cuando lo necesita pero no lo almacena, y así el mismo
 simulación sin pantalla. No se cambia ahora (ya está probado); el switch de
 `TGE_ViewUpdate` en `world_layout` ya deja cada decisión localizada, lo que
 hará el traslado mecánico.
+
+### 10. Macro/función de callbacks de escena (anotado, no implementado)
+
+Los callbacks se siguen cableando a mano:
+
+```c
+scene->update = game_update;
+scene->draw = game_draw;
+scene->event = game_event;
+scene->destroy = game_destroy;
+```
+
+Candidato futuro: algo tipo `TGE_GAME_SCENE(SnakeGame, update, draw, event,
+destroy)` o un constructor de un solo paso. `tge_scene_create` ya absorbe el
+`calloc`/wiring; queda decidir si hace falta un nivel más (macro con los
+nombres de las funciones). No se implementa: los callbacks por nombre siguen
+siendo legibles y el usuario prefiere esperar a que el patrón crezca.
+
+### 11. `TGE_Actor` (anotado, esperar evidencia)
+
+Candidato fuerte para el siguiente módulo "de patrones" de tge-extra:
+
+```c
+typedef struct {
+    TGE_Vec2i position;
+    TGE_Sprite *sprite;
+    TGE_Color fg, bg;
+} TGE_Actor;
+```
+
+Con `tge_grid_draw_actor(...)` para el renderer. No es ECS ni específico de
+Snake (sirve para roguelikes, Tetris, Pac-Man, Bomberman, Sokoban, tower
+defense). **Regla:** no se implementa hasta que 2-3 juegos demuestren que el
+diseño sirve de verdad.
+
+### 12. `TGE_Playfield` (anotado, esperar evidencia)
+
+El Snake muestra una arquitectura emergente:
+
+```
+View + InputBuffer + FixedStep + GridView
+```
+
+Si Snake, Breakout y Pac-Man usan el mismo patrón, recién entonces se
+encapsula. No se implementa todavía.
