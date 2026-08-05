@@ -75,7 +75,8 @@ Módulos opcionales de mayor nivel, cada uno independiente y usando solo API
 pública del core:
 
 - Existentes: `grid`, `entity`, `animation`, `collision`, `vec2i`,
-  `direction`, `timer`, `fixedstep`, `input`.
+  `direction`, `timer`, `fixedstep`, `input`, `view`, `input_buffer`,
+  `grid_view`.
 - Futuros: `tilemap`, `camera`, `ui`, `sprite`.
 
 ### Ejemplos — "así se usa para construir juegos"
@@ -1133,6 +1134,13 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Todos los headers públicos autocontenidos
 - [x] API documentation (comentarios en headers)
 - [x] docs/API_STABILITY.md publicado
+- [x] Fase 4: módulos de layout/entrada (view: TGE_View, input_buffer: TGE_InputBuffer, grid_view: TGE_GridView) con tests (test_view, test_input_buffer, test_grid_view)
+- [x] Fase 4: `01_snake` refactorizado con TGE_View + TGE_InputBuffer (elimina field/too_small/dir_queue manuales)
+- [x] Fase 4: `06_snake_grid` refactorizado como ejemplo de referencia de la arquitectura world/renderer (SnakeWorld puro + SnakeRenderer con TGE_GridView; escenas solo pegan world + renderer)
+- [x] Revisión 2: `tge_view_update()` devuelve `TGE_ViewUpdate` (INVALID/RESIZED/FIRST_VALID); se elimina `laid_out` de los snakes (01 y 06 reaccionan con un switch)
+- [x] Revisión 2: `tge_grid_size_for` / `tge_grid_view_size_for` (tamaño lógico para una superficie arbitraria, sin canvas) — reemplaza el `renderer_playfield` del Snake
+- [x] Revisión 2: `renderer_playfield` → `tge_grid_view_size_for`; `renderer_setup` → `renderer_bind` (sincroniza con el canvas actual, que el app intercambia cada frame); `GameState` → `SnakeGame`
+- [x] Revisión 2: `tge_printf()` en el core con tests y HUDs de todos los juegos migrados
 
 ---
 
@@ -1164,11 +1172,15 @@ Prioridad del usuario:
    GridWalker va dentro de Grid (`tge_grid_step`).
 3. Random helpers (`tge_rand_seed`, `tge_rand_int(min,max)`).
 4. InputQueue de direcciones (DirQueue) — push/pop con semántica de input
-   buffering.
+   buffering. **Hecho (parcial):** realizado como `input_buffer.h`
+   (`TGE_InputBuffer`, FIFO de capacidad fija, drop-new) y consumido por
+   `01_snake`/`06_snake_grid`. Si se implementa el RingBuffer genérico,
+   TGE_InputBuffer puede pasar a construirse sobre él.
 5. PointArray/Deque (`push_front`/`pop_back`/`get`/`len`/`contains`) para el
    body de Snake → `snake_step()` mucho más corto.
 6. Refactor de `01_snake` con todo esto y de `05_swarm` con el nuevo
-   lifecycle de escenas.
+   lifecycle de escenas. **Hecho (01_snake):** `01_snake` usa ya TGE_View +
+   TGE_InputBuffer; `05_swarm` queda pendiente del lifecycle de escenas.
 
 **Nombre a resolver:** el módulo de grilla lógica *matemática* del punto 2
 estaba pensado como `grid.h`, pero ese nombre ya lo ocupa el `TGE_Grid` de
@@ -1214,3 +1226,78 @@ importar, agregar campos no rompe ABI, campos omitidos toman valores por
 defecto. Mientras no existan esas opciones, `TGE_Create(w, h, title)` es
 suficiente y la semántica (width/height = fallback, tamaño real si se puede
 consultar) queda documentada en `include/tge/tge_app.h`.
+
+### 5. Regla de estilo de juegos (anotada, no implementada ahora)
+
+El refactor de `06_snake_grid` deja el split world/renderer **dentro de un
+solo archivo**. La regla de estilo futura (cuando un juego crezca lo
+suficiente) es separarlo en directorio propio:
+
+```
+examples/games/snake/
+  world.c        — SnakeWorld puro (lógica, sin dibujo)
+  world.h
+  renderer.c     — SnakeRenderer (solo dibuja el world)
+  renderer.h
+  main.c         — TGE_App/Scene wiring (pega world + renderer)
+```
+
+No se hace ahora: los ejemplos de un solo archivo son más legibles y 06 ya
+muestra el patrón completo con secciones comentadas.
+
+### 6. TGE_ColorTheme / TGE_Palette (anotado, no implementado)
+
+Observación del usuario para la lista mental (post-1.0): los temas de color
+por rol semántico —`TGE_ColorTheme`/`TGE_Palette`, análogos a
+`TGE_GridTheme`/`TGE_GridTile`— son el paso natural tras el tema visual de
+grid. La paleta se resolvería igual que los tiles: el juego dice el rol, el
+tema dice los colores. No se implementa ahora: los juegos actuales pasan
+colores explícitos por argumento y eso es suficiente.
+
+### 7. `tge_printf` (core, hecho)
+
+El patrón `char buf[N]; snprintf(...); tge_draw_text(...)` aparecía en todos
+los juegos, así que se agregó `tge_printf()` al core (`tge_canvas.h`): formato
+printf en buffer fijo de pila (sin malloc, seguro para el render path) +
+`tge_draw_text`. Se usa en los HUDs de 01/02/03/04/05/06. Quedan con
+`snprintf` solo los textos que necesitan medir su ancho antes de dibujar
+(WAVE centrada, puntaje derecho de Pong).
+
+### 8. Observador de resize (anotado, no implementado)
+
+Patrón que ya aparece en los snakes y se repetirá:
+
+```c
+if (g->world.gw != gw || g->world.gh != gh)
+    world_layout(&g->world, gw, gh);
+```
+
+Candidato futuro (cuando exista un segundo o tercer juego con el patrón):
+`TGE_SurfaceObserver`/`TGE_ResizeWatcher`/`TGE_ViewObserver` que encapsule
+"detectar cambio de tamaño y avisar una sola vez". No se implementa todavía:
+se necesita más evidencia de uso.
+
+### 9. `TGE_View` fuera del mundo (anotado, decisión futura)
+
+La única crítica de arquitectura real: hoy `TGE_View` vive dentro de
+`SnakeWorld`, y el mundo no debería saber del tamaño de la terminal. La forma
+ideal (cuando el patrón se repita en un segundo o tercer juego):
+
+```
+SnakeGame
+    SnakeWorld
+    SnakeRenderer
+    TGE_View
+```
+
+```c
+world_step(world, view.area);
+world_reset(world, view.area);
+renderer_draw(renderer, world, view);
+```
+
+El mundo recibe el rect cuando lo necesita pero no lo almacena, y así el mismo
+`SnakeWorld` correría en un renderer SDL, una ventana fija, una consola o una
+simulación sin pantalla. No se cambia ahora (ya está probado); el switch de
+`TGE_ViewUpdate` en `world_layout` ya deja cada decisión localizada, lo que
+hará el traslado mecánico.

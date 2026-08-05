@@ -17,12 +17,20 @@ Cada módulo es independiente, usa solo la API pública de TGE y nunca
 `tge_internal.h`.
 
 Módulos actuales (experimentales): `entity`, `animation`, `collision`,
-`vec2i`, `direction`, `timer`, `fixedstep`, `input`, `grid`. Los
-utilitarios (`vec2i`, `direction`, `timer`, `fixedstep`, `input`) se validan
-como consumidores de ejemplo `examples/games/01_snake.c` y `05_swarm.c`;
-`grid` (capa de dibujo por grilla con tema visual `TGE_GridTheme` y tiles
-`TGE_GridTile`) se valida en `examples/min/08_grid_canvas.c` y
-`examples/games/06_snake_grid.c`.
+`vec2i`, `direction`, `timer`, `fixedstep`, `input`, `grid`, `view`,
+`input_buffer`, `grid_view`. Los utilitarios (`vec2i`, `direction`, `timer`,
+`fixedstep`, `input`) se validan como consumidores de ejemplo
+`examples/games/01_snake.c` y `05_swarm.c`; `grid` (capa de dibujo por grilla
+con tema visual `TGE_GridTheme` y tiles `TGE_GridTile`) se valida en
+`examples/min/08_grid_canvas.c` y `examples/games/06_snake_grid.c`.
+
+Los módulos de layout y entrada — `view` (TGE_View: playfield adaptativo con
+tamaño mínimo, validez y primer layout), `input_buffer` (TGE_InputBuffer: FIFO
+de direcciones, drop-new) y `grid_view` (TGE_GridView: wrapper de
+configuración sobre TGE_Grid) — se validan como consumidores de ejemplo en
+`examples/games/01_snake.c` (`view` + `input_buffer`) y
+`examples/games/06_snake_grid.c` (`view` + `input_buffer` + `grid_view`),
+que es el ejemplo de referencia de la arquitectura world/renderer.
 
 ## Versiones 0.x (pre-1.0)
 - Breaking changes permitidos en cualquier release.
