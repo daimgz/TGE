@@ -22,6 +22,81 @@
 
 ---
 
+## Arquitectura y filosofía (niveles de API)
+
+TGE ocupa una capa intermedia: por debajo quedan SDL/SFML, por arriba
+Godot/Unity/Raylib. No compite con engines; ofrece un **núcleo bajo nivel
+estable** y módulos opcionales que suben la abstracción.
+
+```
+                 Usuario
+                    |
+                    |
+              Aplicación
+                    |
+        +-----------+-----------+
+        |                       |
+   TGE Core                tge-extra
+        |                       |
+        |                 Grid
+        |                 Entity
+        |                 Animation
+        |                 Camera
+        |                 TileMap
+        |                 UI
+        |
+ Runtime
+ Canvas
+ Events
+ Scene
+ Backend (interno)
+        |
+   ANSI / WinConsole
+```
+
+### Core (`libtge.a`) — "puedo hacer cualquier cosa"
+
+Primitivas estables de ejecución:
+
+- runtime, canvas, eventos, ciclo de vida, escenas, backend (interno).
+
+Las **escenas** pertenecen al core por ser **infraestructura de ejecución**,
+no porque el core tenga un modelo de juego: son una estructura de composición
+y ciclo de vida. El core ejecuta callbacks, pero desconoce el significado de
+esos estados.
+
+Invariante: **el core no conoce gameplay, entidades concretas, reglas de
+juegos, tamaños mínimos, ni tipos de aplicaciones.** Un editor, un emulador,
+una UI o un multiplexer usan exactamente las mismas primitivas.
+
+### tge-extra (`libtge-extra.a`) — "puedo hacer cosas comunes rápidamente"
+
+Módulos opcionales de mayor nivel, cada uno independiente y usando solo API
+pública del core:
+
+- Existentes: `grid`, `entity`, `animation`, `collision`, `vec2i`,
+  `direction`, `timer`, `fixedstep`, `input`.
+- Futuros: `tilemap`, `camera`, `ui`, `sprite`.
+
+### Ejemplos — "así se usa para construir juegos"
+
+Recetas concretas del modelo: `examples/games/*` consumen core + tge-extra.
+
+### Evolución diferida: loop manual
+
+El callback loop (`TGE_Run(app, init, update, draw, event)`) es cómodo para
+la mayoría de los juegos terminales (modelo tipo love.update/draw). No es la
+única salida posible: si aparece un caso real que necesite control total
+(emuladores, servidores interactivos, terminal multiplexers, herramientas
+editoriales), se diseña entonces una API de pump manual
+(`TGE_Running`/`TGE_PollEvent`/`TGE_BeginFrame`/`TGE_EndFrame`). No se
+inventa API sin uso.
+
+Identidad: **"Si quieres control, baja al core. Si quieres velocidad de
+desarrollo, usa extras."**
+
+---
+
 ## Directorio final (post-Fase 4)
 
 ```
@@ -74,6 +149,7 @@ examples/
     02_pong.c         — Fase 3: pong con escenas, física, colisiones
     03_tetris.c       — Fase 3: tetris (timers, input, drawing)
     04_space_invaders.c — Fase 3: space invaders (composite)
+    05_swarm.c        — Fase 4: arena top-down (consumidor real de tge-extra)
 fuzz/
   fuzz_parser.c       — Fuzzing: millones de bytes aleatorios al parser
 docs/
@@ -612,6 +688,12 @@ typedef void (*tge_draw_fn)(TGE_App *app, TGE_Canvas *canvas);
 typedef void (*tge_event_fn)(TGE_App *app, TGE_Event *ev);
 
 TGE_App *TGE_Create(int width, int height, const char *title);
+```
+El tamaño pedido es **mínimo/fallback**: al iniciar, el runtime consulta el
+tamaño real de la terminal al backend (`query_size`, TIOCGWINSZ en el backend
+ANSI). Si la consulta tiene éxito, los canvases se crean con ese tamaño; si no
+(no-tty), se usa el pedido. Los juegos deben tratar `width`/`height` como el
+mínimo soportado y ser adaptativos al canvas que reciben en `draw`.
 void     TGE_Destroy(TGE_App *app);
 void     TGE_Run(TGE_App *app, tge_init_fn init, tge_update_fn update,
                  tge_draw_fn draw, tge_event_fn event);
@@ -843,6 +925,62 @@ sin inflar el núcleo.
 | FOV | `tge-extra/fov.h/.c` | Raycasting, shadowcasting (roguelike) |
 | Pathfinding | `tge-extra/pathfinding.h/.c` | A* sobre grid |
 | Noise | `tge-extra/noise.h/.c` | Perlin/Simplex noise para generación procedural |
+| Vec2i | `tge-extra/vec2i.h/.c` | `TGE_Vec2i { int x, y; }` + add/sub/scale/eq/zero |
+| Direction | `tge-extra/direction.h/.c` | Enum NONE/UP/DOWN/LEFT/RIGHT + opposite/dx/dy/vec |
+| Timer | `tge-extra/timer.h/.c` | Acumulador de intervalos (update + drain de ticks) |
+| FixedStep | `tge-extra/fixedstep.h/.c` | Lazo fixed-timestep con clamp a `max_step` pasos |
+| Input | `tge-extra/input.h/.c` | Helpers: direction (flechas + WASD), confirm, cancel, quit |
+| Grid | `tge-extra/grid.h/.c` | Capa de dibujo para juegos por grilla: cada celda lógica = bloque `cell_w × cell_h` (corrige el aspecto 1:2); tema visual `TGE_GridTheme` (empty/default_sprite/border/selection) + tiles `TGE_GridTile` (`put_tile`/`fill`), sprites arbitrarios (`put`), y helpers (`set_cell`/`draw_border`/`clear`/`erase`/`draw_frame`/`line`/`circle`/`text`) |
+| TileMap | `tge-extra/tilemap.h/.c` | Mapa de celdas lógicas a sprites sobre un `TGE_Grid`: `tge_tilemap_init(&map, 64, 64)`, `tge_tilemap_set(&map, 10, 5, &wall)`, `tge_tilemap_draw(&grid, &map)` |
+
+### Grid (aspecto de celda)
+
+Las celdas de terminal no son cuadradas (aprox. 1:2 ancho:alto). `grid.h`
+resuelve el problema con una grilla lógica: el juego dibuja en coordenadas
+lógicas y cada celda se renderiza como un bloque `cell_w × cell_h` de
+caracteres. Con `tge_grid_square_pixels()` (macro de `set_cell_size(2, 1)`)
+la celda se ve cuadrada: círculos dejan de ser elipses y el movimiento
+horizontal y vertical se perciben iguales. La misma lógica de juego corre a
+cualquier resolución física solo cambiando el tamaño de celda (grilla 20×19 →
+20×19 / 40×19 / 80×38).
+
+El Grid es una capa de dibujo para juegos por grilla, no un mini motor 2D
+(sin tilemaps, cámaras, capas, entidades, animaciones ni z-order: eso va en
+módulos separados). El Grid tiene un origen, un tamaño de celda, un tema y
+helpers de dibujo. Cada celda lógica se dibuja con un *tile* semántico
+(`TGE_GridTile`: empty/default/border/selection) que se resuelve a través del
+tema (`TGE_GridTheme`, un sprite por rol: `empty`, `default_sprite`, `border`,
+`selection`). `set_cell`/`fill`/`line`/`circle` usan el tile `default`
+(`default_sprite`: la celda normal del mapa),
+`draw_border` usa `border`, `clear`/`erase` usan `empty`, y `put_tile`
+dibuja cualquier tile explícito. `put` dibuja un `TGE_Sprite` arbitrario a
+tamaño natural sin escalar (p.ej. un personaje 5×5). Hay tres temas
+listos: `TGE_GRID_THEME_BLOCKS` (bloques Unicode, para juegos),
+`TGE_GRID_THEME_ASCII` (para terminales sin Unicode) y `TGE_GRID_THEME_DOTS`
+(demuestra que un sprite no tiene por qué ser un bloque). `draw_text` y
+`draw_frame` operan a nivel grilla sin escalar (HUD y paneles mantienen su
+tamaño natural). Validado en `examples/min/08_grid_canvas.c` (swap de
+temas). El ejemplo didáctico de juego de grilla es
+`examples/games/06_snake_grid.c`: mismo Snake que 01 pero con la lógica de
+`tge-extra` (Grid 2×1 + tema `SNAKE_THEME`; pared con `draw_border`, cuerpo
+con `set_cell`, cabeza y comida con `put`), demostrando el valor de la
+grilla frente al ejemplo core-only.
+
+### TileMap (próximo módulo extra)
+
+Dado que el Grid ya resuelve la representación de celdas (tema + tiles), el
+siguiente módulo extra natural es `TileMap`: una matriz de celdas lógicas →
+sprites renderizada sobre un `TGE_Grid`, pensada para niveles estilo
+Zelda/Pokémon/Pac-Man:
+`tge_tilemap_init(&map, 64, 64)`; `tge_tilemap_set(&map, 10, 5, &wall)`;
+`tge_tilemap_draw(&grid, &map)`. Sin malloc (capacidad fija) como el resto
+de tge-extra. Se implementará cuando se pida un juego que lo necesite.
+
+### Módulos utilitarios (Batch 2)
+
+Se añadieron pensando en simplificar los juegos core. Se validan
+refactorizando `examples/games/01_snake.c` con Vec2i, Direction, FixedStep e
+Input: el snake deja de manejar `x`/`y` sueltos, `dx/dy` o keycodes a mano.
 
 ### Reglas de tge-extra
 1. Cada módulo es independiente y se compila solo si se necesita.
@@ -854,11 +992,36 @@ sin inflar el núcleo.
 - Fase 2 (engine API)
 - No dependen entre sí
 
+### `examples/games/05_swarm.c` (consumidor real de tge-extra)
+
+Los demás juegos del directorio son showcases del core a propósito; este
+existe para "dogfooding": es un arena shooter top-down que usa los tres
+módulos de tge-extra en un caso natural, no sintético.
+
+- `TGE_EntityPool` — posee todos los actores (player, enemies, bullets)
+  mediante handles opacos; el estado vive en `userdata` (`Body`).
+- `TGE_Anim` — dos usos por enemigo: tween de entrada (drop-in, `value()`
+  = posición vertical de spawn, ease OUT) y tween en loop usado como reloj
+  para el sway horizontal (muestreado con `progress()`).
+- `TGE_CollisionWorld` — un rect 1x1 por entidad, `move()` cada frame y
+  `query()` para bala-enemigo, player-enemigo y breach inferior.
+
+Cada frame: `for_each` actualiza anims + rects → `query()`s de colisión →
+remoción diferida (no se libera durante la iteración, se acumula en
+`to_kill[]` y se `flush_kills()` después).
+
+**Qué valida:** ergonomía real de tge-extra (composición de los tres
+módulos), restricción "no alloc/release durante `for_each`", y que la
+remoción diferida es un patrón natural.
+
 ### Criterio de éxito
 ```c
 // Cada módulo tiene un test:
 #include "tge-extra/entity.h"
 // compila, linkea, corre
+```
+```bash
+make examples/games/05_swarm  # swarm corre, es jugable y no pierde memoria
 ```
 
 ---
@@ -958,6 +1121,96 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Fase 3: Pong jugable (física continua, dt, colisiones con ángulo)
 - [x] Fase 3: Tetris jugable (rotación, grid, gravedad)
 - [x] Fase 3: Space Invaders jugable (múltiples entidades, colisiones)
+- [x] Fase 4: juego consumidor real de tge-extra (05_swarm: entity + animation + collision)
+- [x] Fase 4: módulos Batch 1 testeados (entity, animation, collision: test_entity, test_animation, test_collision)
+- [x] Fase 4: módulos Batch 2 testeados (vec2i, direction, timer, fixedstep, input: test_vec2i, test_direction, test_timer, test_fixedstep, test_input)
+- [x] Fase 4: Snake refactorizado con tge-extra (Vec2i, Direction, FixedStep, Input) y verificado
+- [x] Fase 4: Grid (grid.h) con tests (test_grid) y demo (examples/min/08_grid_canvas)
+- [x] Fase 4: tema visual (TGE_Grid + TGE_GridTheme + TGE_GridTile) y Snake con píxeles cuadrados (examples/games/06_snake_grid.c)
+- [x] Core: `TGE_Create` usa el tamaño real de la terminal (TIOCGWINSZ) como tamaño inicial, con el tamaño pedido como fallback (`backend->query_size`)
+- [x] Snakes adaptativos: `01_snake` y `06_snake_grid` se adaptan al tamaño de la terminal (layout canvas → HUD → playfield, evento `TGE_EVENT_RESIZE`, mensaje si es muy pequeño)
+- [x] Cuerpo dinámico: `body` crece con `realloc` (capacidad = área del playfield) y se re-tunea al resize; corrige el límite fijo `MAX_LEN` que era menor que el área máxima del campo
 - [x] Todos los headers públicos autocontenidos
 - [x] API documentation (comentarios en headers)
 - [x] docs/API_STABILITY.md publicado
+
+---
+
+## Pendiente / Diferido (decisión del usuario, pendiente de retomar)
+
+El usuario pidió **anotar** esto antes de pasar a algo más urgente. No está
+bloqueado, solo diferido.
+
+### 1. Lifecycle de escenas en el core
+
+Objetivo: eliminar `g_title`/`g_game`/`cleanup_scene()` de todos los ejemplos.
+Diagnóstico ya confirmado en `src/app.c`/`src/scene.c`:
+
+- `TGE_PopScene`/`TGE_ReplaceScene` llaman `destroy()` pero **nunca liberan el
+  struct `TGE_Scene`**; `TGE_Run` tampoco limpia la pila al salir.
+- Propuesta (opción A recomendada): `TGE_SceneCreate()` marca la escena como
+  `owned` (campo nuevo en el struct). El engine, al salir (`TGE_Run`) y en
+  pop/replace, llama `destroy()` y luego libera el struct solo si es `owned`.
+  Contrato nuevo: `destroy()` limpia solo `userdata`; el engine se encarga del
+  struct. Escenas `static` (02/03/04) no se tocan (destroy=NULL, owned=false).
+- Alternativas: solo llamar `destroy()` al salir (no basta para title heap);
+  o no tocar el core (helpers de escena como módulo tge-extra).
+
+### 2. tge-extra Batch 3 (módulos de patrones, no utilidades sueltas)
+
+Prioridad del usuario:
+1. RingBuffer genérico (`TGE_RingBuffer`, capacidad fija, sin malloc).
+2. Grid (`contains`/`inside`/`center`/`area`/`step`/`random_cell`) — el
+   GridWalker va dentro de Grid (`tge_grid_step`).
+3. Random helpers (`tge_rand_seed`, `tge_rand_int(min,max)`).
+4. InputQueue de direcciones (DirQueue) — push/pop con semántica de input
+   buffering.
+5. PointArray/Deque (`push_front`/`pop_back`/`get`/`len`/`contains`) para el
+   body de Snake → `snake_step()` mucho más corto.
+6. Refactor de `01_snake` con todo esto y de `05_swarm` con el nuevo
+   lifecycle de escenas.
+
+**Nombre a resolver:** el módulo de grilla lógica *matemática* del punto 2
+estaba pensado como `grid.h`, pero ese nombre ya lo ocupa el `TGE_Grid` de
+renderizado (aspecto de celda, Fase 4). El módulo matemático se renombrará
+(p.ej. `board.h`) cuando se implemente.
+
+Decisión abierta: **dependencias entre módulos** — construir DirQueue y
+PointDeque sobre el RingBuffer genérico (relajar la regla "sin dependencias"
+a "deps unidireccionales solo hacia ring.h") vs. cada uno autocontenido.
+
+### 3. tge-extra como biblioteca de patrones
+
+Dirección general acordada: dejar de ser colección de utilidades y pasar a
+ser una biblioteca de patrones comunes de juegos (input buffering, grillas,
+colas, etc.), siempre bajo el criterio "¿hace el código del juego
+significativamente más simple sin volverlo más complejo?".
+
+### 4. `TGE_CreateConfig` (API complementaria, estilo SDL3, evolución futura)
+
+Principio: **las APIs simples no desaparecen cuando aparece una API avanzada.**
+Un usuario que quiere lo básico no debería tener que escribir un struct:
+
+```c
+TGE_Create(80, 24, "Snake");   // caso básico: sigue siendo lo normal
+```
+
+`TGE_Config` + `TGE_DEFAULT_CONFIG` se agregan como API **complementaria**
+(tipo SDL_image/ttf), para opciones avanzadas que no caben en el shortcut:
+
+```c
+TGE_Config cfg = TGE_DEFAULT_CONFIG;
+cfg.title     = "Snake";
+cfg.width     = 80;   // fallback si el backend no puede consultar el tamaño real
+cfg.height    = 24;
+cfg.resizable = true; // etc.
+
+TGE_App *app = TGE_CreateConfig(&cfg);
+```
+
+Candidatos futuros: `resizable`, `vsync`, `fps limit`, `backend hints`,
+`cursor visibility`. Ventajas: parámetros con nombre, el orden deja de
+importar, agregar campos no rompe ABI, campos omitidos toman valores por
+defecto. Mientras no existan esas opciones, `TGE_Create(w, h, title)` es
+suficiente y la semántica (width/height = fallback, tamaño real si se puede
+consultar) queda documentada en `include/tge/tge_app.h`.

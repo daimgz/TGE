@@ -20,6 +20,12 @@ typedef void (*tge_update_fn)(TGE_App *app, float dt);
 typedef void (*tge_draw_fn)(TGE_App *app, TGE_Canvas *canvas);
 typedef void (*tge_event_fn)(TGE_App *app, TGE_Event *ev);
 
+/* Creates an application.
+ *
+ * width and height are FALLBACK dimensions, not a guaranteed canvas size.
+ * If the backend can query the real output size (for example a terminal),
+ * that size is used instead. Applications should adapt their rendering to
+ * the canvas size they receive in draw() and resize events. */
 TGE_App *TGE_Create(int width, int height, const char *title);
 void     TGE_Destroy(TGE_App *app);
 /* Runs the main loop, calling the given callbacks each frame, until

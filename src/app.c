@@ -144,7 +144,9 @@ TGE_App *TGE_Create(int width, int height, const char *title)
     TGE_Runtime *rt = tge_runtime_create(width, height);
     if (!rt)
         return NULL;
-    TGE_App *app = tge_app_create_with_runtime(rt, width, height);
+    int real_w = tge_runtime_width(rt);
+    int real_h = tge_runtime_height(rt);
+    TGE_App *app = tge_app_create_with_runtime(rt, real_w, real_h);
     if (!app) {
         tge_runtime_destroy(rt);
         return NULL;

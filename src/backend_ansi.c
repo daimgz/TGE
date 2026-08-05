@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #include <time.h>
@@ -228,6 +229,19 @@ static int ansi_height(void *data)
     return ((ANSIState *)data)->h;
 }
 
+/* Query the real terminal size (TIOCGWINSZ). Returns false when the output
+ * is not a terminal, so the caller falls back to the requested size. */
+static bool ansi_query_size(void *data, int *w, int *h)
+{
+    (void)data;
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) != 0)
+        return false;
+    *w = ws.ws_col;
+    *h = ws.ws_row;
+    return true;
+}
+
 static void ansi_present(void *data, struct TGE_Diff *diff,
                          const TGE_Cell *cells, int stride)
 {
@@ -309,6 +323,7 @@ static TGE_Backend *backend_new(FILE *out)
     b->term = ansi_term;
     b->width = ansi_width;
     b->height = ansi_height;
+    b->query_size = ansi_query_size;
     b->present = ansi_present;
     b->read_input = ansi_read_input;
     b->ticks = ansi_ticks;

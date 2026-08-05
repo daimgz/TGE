@@ -34,6 +34,7 @@ typedef struct {
     void (*term)(void *data);
     int  (*width)(void *data);
     int  (*height)(void *data);
+    bool (*query_size)(void *data, int *w, int *h);
     void (*present)(void *data, struct TGE_Diff *diff, const TGE_Cell *cells, int stride);
     int  (*read_input)(void *data, char *buf, int bufsize);
     uint64_t (*ticks)(void *data);

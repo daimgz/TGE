@@ -84,6 +84,13 @@ TGE_Runtime *tge_runtime_create_with_backend(TGE_Backend *backend,
         tge_runtime_destroy(rt);
         return NULL;
     }
+    if (backend->query_size) {
+        int qw = 0, qh = 0;
+        if (backend->query_size(backend->data, &qw, &qh) && qw > 0 && qh > 0) {
+            rt->width = qw;
+            rt->height = qh;
+        }
+    }
     {
         TGE_Event evs[TGE_SCHED_MAX_TIMERS];
         int count = 0;
