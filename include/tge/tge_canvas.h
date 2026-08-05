@@ -60,6 +60,16 @@ void tge_set_cell(TGE_Canvas *canvas, int x, int y, uint32_t ch,
 void tge_draw_text(TGE_Canvas *canvas, int x, int y, const char *text,
                    TGE_Color fg, TGE_Color bg);
 
+#define TGE_PRINTF_BUF 256 /* fixed stack buffer for tge_printf */
+
+/* Formatted text: printf-style shorthand for snprintf into a fixed stack
+ * buffer (no allocation, safe for the render path) followed by
+ * tge_draw_text. Truncates like snprintf when the result does not fit.
+ *   tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK,
+ *              " SCORE: %d ", score); */
+void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
+                const char *fmt, ...);
+
 void tge_draw_rect(TGE_Canvas *canvas, int x, int y, int w, int h,
                    TGE_Color fg, TGE_Color bg);
 void tge_draw_frame(TGE_Canvas *canvas, int x, int y, int w, int h,

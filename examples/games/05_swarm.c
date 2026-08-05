@@ -448,15 +448,14 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
         tge_set_cell(canvas, g->px, g->py, '@', TGE_COLOR_GREEN,
                      TGE_COLOR_BLACK);
 
-    char hud[40];
-    snprintf(hud, sizeof(hud), " SCORE %06d ", g->score);
-    tge_draw_text(canvas, 1, 0, hud, TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    snprintf(hud, sizeof(hud), " LV %d ", g->level);
-    tge_draw_text(canvas, 17, 0, hud, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    snprintf(hud, sizeof(hud), " LIVES %d ", g->lives);
-    tge_draw_text(canvas, 25, 0, hud, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    snprintf(hud, sizeof(hud), " LEFT %02d ", g->live);
-    tge_draw_text(canvas, 37, 0, hud, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK,
+               " SCORE %06d ", g->score);
+    tge_printf(canvas, 17, 0, TGE_COLOR_CYAN, TGE_COLOR_BLACK, " LV %d ",
+               g->level);
+    tge_printf(canvas, 25, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK, " LIVES %d ",
+               g->lives);
+    tge_printf(canvas, 37, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, " LEFT %02d ",
+               g->live);
 
     if (g->state == S_WAVE) {
         char buf[24];

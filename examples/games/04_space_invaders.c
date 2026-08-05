@@ -296,15 +296,14 @@ static void si_update(TGE_Scene *scene, float dt)
 
 static void draw_hud(TGE_Canvas *canvas, const Invaders *t)
 {
-    char buf[40];
-    snprintf(buf, sizeof(buf), " SCORE %06d ", t->score);
-    tge_draw_text(canvas, 1, 0, buf, TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    snprintf(buf, sizeof(buf), " LV %d ", t->level);
-    tge_draw_text(canvas, 14, 0, buf, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    snprintf(buf, sizeof(buf), " LIVES %d ", t->lives);
-    tge_draw_text(canvas, 22, 0, buf, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    snprintf(buf, sizeof(buf), " LEF %02d ", t->count);
-    tge_draw_text(canvas, 33, 0, buf, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK,
+               " SCORE %06d ", t->score);
+    tge_printf(canvas, 14, 0, TGE_COLOR_CYAN, TGE_COLOR_BLACK, " LV %d ",
+               t->level);
+    tge_printf(canvas, 22, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK, " LIVES %d ",
+               t->lives);
+    tge_printf(canvas, 33, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, " LEF %02d ",
+               t->count);
 }
 
 static void si_draw(TGE_Scene *scene, TGE_Canvas *canvas)

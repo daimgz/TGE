@@ -196,8 +196,8 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
 
     char buf[16];
-    snprintf(buf, sizeof(buf), " P1: %d ", g->score1);
-    tge_draw_text(canvas, 2, 0, buf, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_printf(canvas, 2, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK, " P1: %d ",
+               g->score1);
     snprintf(buf, sizeof(buf), " %d: P2 ", g->score2);
     tge_draw_text(canvas, w - 2 - (int)strlen(buf), 0, buf, TGE_COLOR_RED,
                   TGE_COLOR_BLACK);

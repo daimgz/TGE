@@ -1,6 +1,7 @@
 #include "tge/tge_canvas.h"
 #include "tge/tge_utf8.h"
 #include "tge_internal.h"
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -127,6 +128,19 @@ void tge_draw_text(TGE_Canvas *canvas, int x, int y, const char *text,
         tge_set_cell(canvas, cur_x, y, cp, fg, bg);
         cur_x += w;
     }
+}
+
+void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
+                const char *fmt, ...)
+{
+    if (!canvas || !fmt)
+        return;
+    char buf[TGE_PRINTF_BUF] = { 0 };
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    tge_draw_text(canvas, x, y, buf, fg, bg);
 }
 
 void tge_draw_rect(TGE_Canvas *canvas, int x, int y, int w, int h,

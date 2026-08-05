@@ -297,16 +297,15 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
             if (nx->cells[y][x])
                 draw_block(canvas, px + x, py + y, tge_color_indexed(nx->color));
 
-    char buf[24];
     tge_draw_text(canvas, 17, 9, " SCORE ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    snprintf(buf, sizeof(buf), "%6d", t->score);
-    tge_draw_text(canvas, 17, 10, buf, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_printf(canvas, 17, 10, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
+               t->score);
     tge_draw_text(canvas, 17, 12, " LEVEL ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    snprintf(buf, sizeof(buf), "%6d", t->level);
-    tge_draw_text(canvas, 17, 13, buf, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_printf(canvas, 17, 13, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
+               t->level);
     tge_draw_text(canvas, 17, 15, " LINES ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    snprintf(buf, sizeof(buf), "%6d", t->lines);
-    tge_draw_text(canvas, 17, 16, buf, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_printf(canvas, 17, 16, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
+               t->lines);
 
     const char *controls = " <-> move  W/Up rot  Space drop  ESC ";
     tge_draw_text(canvas, 1, h - 1, controls, TGE_COLOR_GREEN, TGE_COLOR_BLACK);

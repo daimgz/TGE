@@ -114,6 +114,44 @@ TGE_TEST(draw_text_ascii)
     TGE_ASSERT(cell_at(c, 4, 0)->ch == 'a', "a");
     TGE_ASSERT(cell_at(c, 0, 0)->ch == ' ', "before");
     TGE_ASSERT(cell_at(c, 1, 0)->fg.data.index == 3, "fg yellow");
+
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(printf_formats_and_draws)
+{
+    TGE_Canvas *c = make_canvas(20, 2);
+    tge_clear(c, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_printf(c, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK, " SCORE: %d ",
+               320);
+    TGE_ASSERT(cell_at(c, 1, 0)->ch == ' ', "leading space");
+    TGE_ASSERT(cell_at(c, 2, 0)->ch == 'S', "S");
+    TGE_ASSERT(cell_at(c, 6, 0)->ch == 'E', "E");
+    TGE_ASSERT(cell_at(c, 7, 0)->ch == ':', ":");
+    TGE_ASSERT(cell_at(c, 9, 0)->ch == '3', "3");
+    TGE_ASSERT(cell_at(c, 10, 0)->ch == '2', "2");
+    TGE_ASSERT(cell_at(c, 11, 0)->ch == '0', "0");
+    TGE_ASSERT(cell_at(c, 12, 0)->ch == ' ', "trailing space");
+    TGE_ASSERT(cell_at(c, 1, 0)->fg.data.index == 3, "fg yellow");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(printf_truncates_and_clips)
+{
+    TGE_Canvas *c = make_canvas(6, 1);
+    tge_clear(c, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_printf(c, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%d-%d", 12345, 67890);
+    TGE_ASSERT(cell_at(c, 0, 0)->ch == '1', "starts");
+    TGE_ASSERT(cell_at(c, 5, 0)->ch != ' ', "clipped at right edge");
+    TGE_ASSERT(cell_at(c, 5, 0)->ch != '0', "no wrap outside");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(printf_null_safety)
+{
+    TGE_Canvas *c = make_canvas(4, 1);
+    tge_printf(NULL, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "x");
+    tge_printf(c, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, NULL);
     tge_canvas_destroy(c);
 }
 
@@ -321,6 +359,9 @@ int main(void)
     test_set_cell_wide_continuation();
     test_set_cell_wide_at_edge_clips();
     test_draw_text_ascii();
+    test_printf_formats_and_draws();
+    test_printf_truncates_and_clips();
+    test_printf_null_safety();
     test_draw_text_right_clip();
     test_draw_text_left_clip();
     test_draw_text_utf8_wide();
