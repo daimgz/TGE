@@ -460,17 +460,17 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     if (g->state == S_WAVE) {
         char buf[24];
         snprintf(buf, sizeof(buf), " WAVE %d ", g->level + 1);
-        tge_draw_text(canvas, (w - (int)strlen(buf)) / 2, h / 2, buf,
-                      TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2, buf, TGE_COLOR_YELLOW,
+                               TGE_COLOR_BLACK);
     }
 
     if (g->state == S_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] retry  [ESC] menu  [Q] quit ";
-        tge_draw_text(canvas, (w - (int)strlen(msg)) / 2, h / 2 - 2, msg,
-                      TGE_COLOR_RED, TGE_COLOR_BLACK);
-        tge_draw_text(canvas, (w - (int)strlen(again)) / 2, h / 2, again,
-                      TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 2, msg, TGE_COLOR_RED,
+                               TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
     }
 }
 
@@ -565,12 +565,12 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(title)) / 2, h / 2 - 2, title,
-                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(controls)) / 2, h / 2, controls,
-                  TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(start)) / 2, h / 2 + 2, start,
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_BLACK);
 }
 
 static void title_event(TGE_Scene *scene, TGE_Event *ev)

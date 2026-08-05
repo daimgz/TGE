@@ -8,7 +8,6 @@
 #include "tge-extra/view.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 /* The playfield adapts to the terminal: TGE_Create requests a minimum and the
  * core starts with the real terminal size when it can. The layout is
@@ -200,9 +199,8 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
                s->score);
 
     if (!s->view.valid) {
-        const char *msg = " too small ";
-        tge_draw_text(canvas, (w - (int)strlen(msg)) / 2, h / 2, msg,
-                      TGE_COLOR_RED, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2, " too small ",
+                               TGE_COLOR_RED, TGE_COLOR_BLACK);
         return;
     }
 
@@ -218,14 +216,12 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     if (s->state == SNAKE_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
-        int mx = (w - (int)strlen(msg)) / 2;
         tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
                       TGE_COLOR_BLACK);
-        tge_draw_text(canvas, mx, h / 2 - 1, msg, TGE_COLOR_RED,
-                      TGE_COLOR_BLACK);
-        int ax = (w - (int)strlen(again)) / 2;
-        tge_draw_text(canvas, ax, h / 2 + 1, again, TGE_COLOR_WHITE,
-                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, msg, TGE_COLOR_RED,
+                               TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
     }
 }
 
@@ -276,12 +272,12 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(title)) / 2, h / 2 - 2, title,
-                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(controls)) / 2, h / 2, controls,
-                  TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(start)) / 2, h / 2 + 2, start,
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_BLACK);
 }
 
 static void title_event(TGE_Scene *scene, TGE_Event *ev)

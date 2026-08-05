@@ -70,6 +70,12 @@ void tge_draw_text(TGE_Canvas *canvas, int x, int y, const char *text,
 void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
                 const char *fmt, ...);
 
+/* Text centered horizontally on the canvas at row `y`. Width is measured in
+ * display columns (wide UTF-8 chars count double), so centering survives
+ * full-width glyphs. No-ops on NULL canvas/text. */
+void tge_draw_centered_text(TGE_Canvas *canvas, int y, const char *text,
+                            TGE_Color fg, TGE_Color bg);
+
 void tge_draw_rect(TGE_Canvas *canvas, int x, int y, int w, int h,
                    TGE_Color fg, TGE_Color bg);
 void tge_draw_frame(TGE_Canvas *canvas, int x, int y, int w, int h,

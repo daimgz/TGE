@@ -44,7 +44,6 @@
 #include "tge-extra/view.h"
 
 #include <stdlib.h>
-#include <string.h>
 
 /* Minimum playfield interior (cells inside the border): the game asks for at
  * least this before a layout counts as valid. At cell size 2x1 with a HUD row
@@ -260,9 +259,8 @@ static void renderer_draw(SnakeRenderer *r, TGE_Canvas *canvas,
     tge_grid_view_draw_border(&r->view, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
 
     if (!s->view.valid) {
-        const char *msg = " too small ";
-        tge_draw_text(canvas, (w - (int)strlen(msg)) / 2, h / 2, msg,
-                      TGE_COLOR_RED, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2, " too small ",
+                               TGE_COLOR_RED, TGE_COLOR_BLACK);
         return;
     }
 
@@ -279,14 +277,12 @@ static void renderer_draw(SnakeRenderer *r, TGE_Canvas *canvas,
     if (s->state == SNAKE_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
-        int mx = (w - (int)strlen(msg)) / 2;
         tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
                       TGE_COLOR_BLACK);
-        tge_draw_text(canvas, mx, h / 2 - 1, msg, TGE_COLOR_RED,
-                      TGE_COLOR_BLACK);
-        int ax = (w - (int)strlen(again)) / 2;
-        tge_draw_text(canvas, ax, h / 2 + 1, again, TGE_COLOR_WHITE,
-                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, msg, TGE_COLOR_RED,
+                               TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
     }
 }
 
@@ -372,14 +368,14 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(title)) / 2, h / 2 - 4, title,
-                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(subtitle)) / 2, h / 2 - 2, subtitle,
-                  TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(controls)) / 2, h / 2 + 1, controls,
-                  TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(start)) / 2, h / 2 + 3, start,
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 - 4, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 - 2, subtitle, TGE_COLOR_CYAN,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 1, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 3, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_BLACK);
 
     TGE_GridView gv;
     tge_grid_view_init(&gv, canvas, &SNAKE_THEME, TGE_GRID_SCALE_2X1);

@@ -143,6 +143,33 @@ void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
     tge_draw_text(canvas, x, y, buf, fg, bg);
 }
 
+static int text_width(const char *text)
+{
+    int len = (int)strlen(text);
+    int pos = 0;
+    int w = 0;
+    while (pos < len) {
+        uint32_t cp;
+        int n = tge_utf8_decode(text + pos, len - pos, &cp);
+        if (n <= 0) {
+            pos++;
+            continue;
+        }
+        pos += n;
+        w += tge_utf8_char_width(cp);
+    }
+    return w;
+}
+
+void tge_draw_centered_text(TGE_Canvas *canvas, int y, const char *text,
+                            TGE_Color fg, TGE_Color bg)
+{
+    if (!canvas || !canvas->cells || !text)
+        return;
+    int x = (canvas->width - text_width(text)) / 2;
+    tge_draw_text(canvas, x, y, text, fg, bg);
+}
+
 void tge_draw_rect(TGE_Canvas *canvas, int x, int y, int w, int h,
                    TGE_Color fg, TGE_Color bg)
 {

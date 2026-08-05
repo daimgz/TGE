@@ -223,9 +223,8 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
         tge_draw_text(canvas, w / 2, h / 2, n, TGE_COLOR_YELLOW,
                       TGE_COLOR_BLACK);
     } else if (g->state == STATE_RUNNING && g->go_flash > 0.0f) {
-        const char *go = " GO! ";
-        tge_draw_text(canvas, w / 2 - (int)strlen(go) / 2, h / 2, go,
-                      TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2, " GO! ", TGE_COLOR_YELLOW,
+                               TGE_COLOR_BLACK);
     }
 
     if (g->state == STATE_OVER) {
@@ -234,10 +233,10 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
         const char *again = " [ENTER] rematch  [ESC] menu ";
         tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
                       TGE_COLOR_BLACK);
-        tge_draw_text(canvas, (w - (int)strlen(msg)) / 2, h / 2 - 1, msg,
-                      TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-        tge_draw_text(canvas, (w - (int)strlen(again)) / 2, h / 2 + 1, again,
-                      TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, msg, TGE_COLOR_YELLOW,
+                               TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
     }
 }
 
@@ -307,12 +306,12 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *start = " [ENTER] to start  [Q] to quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(title)) / 2, h / 2 - 2, title,
-                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(controls)) / 2, h / 2, controls,
-                  TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(start)) / 2, h / 2 + 2, start,
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_BLACK);
 }
 
 static void title_event(TGE_Scene *scene, TGE_Event *ev)

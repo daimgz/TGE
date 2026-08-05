@@ -315,10 +315,10 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
         const char *again = " [ENTER] retry  [ESC] menu ";
         tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_BLACK,
                       TGE_COLOR_BLACK);
-        tge_draw_text(canvas, (w - (int)strlen(msg)) / 2, OY + ROWS / 2 - 1,
-                      msg, TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-        tge_draw_text(canvas, (w - (int)strlen(again)) / 2, OY + ROWS / 2 + 1,
-                      again, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, msg,
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
+                               TGE_COLOR_WHITE, TGE_COLOR_BLACK);
     }
 }
 
@@ -384,14 +384,14 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *start = " [ENTER] to start  [Q] to quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(title)) / 2, h / 2 - 3, title,
-                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(c1)) / 2, h / 2, c1,
-                  TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(c2)) / 2, h / 2 + 1, c2,
-                  TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, (w - (int)strlen(start)) / 2, h / 2 + 3, start,
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 - 3, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2, c1, TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 1, c2, TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, h / 2 + 3, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_BLACK);
 }
 
 static void title_event(TGE_Scene *scene, TGE_Event *ev)

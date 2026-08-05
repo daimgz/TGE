@@ -155,6 +155,38 @@ TGE_TEST(printf_null_safety)
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(draw_centered_ascii)
+{
+    TGE_Canvas *c = make_canvas(10, 1);
+    tge_clear(c, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_draw_centered_text(c, 0, "ABCDE", TGE_COLOR_RED, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 1, 0)->ch == ' ', "left padding");
+    TGE_ASSERT(cell_at(c, 2, 0)->ch == 'A', "starts at (10-5)/2");
+    TGE_ASSERT(cell_at(c, 6, 0)->ch == 'E', "ends at (10-5)/2+4");
+    TGE_ASSERT(cell_at(c, 2, 0)->fg.data.index == 1, "fg red");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(draw_centered_wide_utf8)
+{
+    TGE_Canvas *c = make_canvas(6, 1);
+    tge_clear(c, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_draw_centered_text(c, 0, "\xe3\x81\x82\xe3\x81\x84", TGE_COLOR_WHITE,
+                           TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 1, 0)->ch == 0x3042, "first wide char at x=1");
+    TGE_ASSERT(cell_at(c, 3, 0)->ch == 0x3044, "second wide char at x=3");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(draw_centered_null_safety)
+{
+    TGE_Canvas *c = make_canvas(4, 1);
+    tge_draw_centered_text(NULL, 0, "x", TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_draw_centered_text(c, 0, NULL, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_draw_centered_text(c, 5, "x", TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_canvas_destroy(c);
+}
+
 TGE_TEST(draw_text_right_clip)
 {
     TGE_Canvas *c = make_canvas(5, 1);
@@ -362,6 +394,9 @@ int main(void)
     test_printf_formats_and_draws();
     test_printf_truncates_and_clips();
     test_printf_null_safety();
+    test_draw_centered_ascii();
+    test_draw_centered_wide_utf8();
+    test_draw_centered_null_safety();
     test_draw_text_right_clip();
     test_draw_text_left_clip();
     test_draw_text_utf8_wide();
