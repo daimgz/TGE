@@ -16,6 +16,14 @@ solo linkean `-ltge`; los que sí (p.ej. un roguelike) añaden `-ltge-extra`.
 Cada módulo es independiente, usa solo la API pública de TGE y nunca
 `tge_internal.h`.
 
+Módulos actuales (experimentales): `entity`, `animation`, `collision`,
+`vec2i`, `direction`, `timer`, `fixedstep`, `input`, `grid`. Los
+utilitarios (`vec2i`, `direction`, `timer`, `fixedstep`, `input`) se validan
+como consumidores de ejemplo `examples/games/01_snake.c` y `05_swarm.c`;
+`grid` (capa de dibujo por grilla con tema visual `TGE_GridTheme` y tiles
+`TGE_GridTile`) se valida en `examples/min/08_grid_canvas.c` y
+`examples/games/06_snake_grid.c`.
+
 ## Versiones 0.x (pre-1.0)
 - Breaking changes permitidos en cualquier release.
 - Se anuncian en el changelog.

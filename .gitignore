@@ -18,6 +18,12 @@ tests/test_app
 tests/test_entity
 tests/test_animation
 tests/test_collision
+tests/test_vec2i
+tests/test_direction
+tests/test_timer
+tests/test_fixedstep
+tests/test_input
+tests/test_grid
 tests/check_no_malloc
 fuzz/fuzz_*
 benchmarks/bench_*
@@ -29,7 +35,10 @@ examples/min/04_colors
 examples/min/05_resize
 examples/min/06_mouse
 examples/min/07_extra_demo
+examples/min/08_grid_canvas
 examples/games/01_snake
 examples/games/02_pong
 examples/games/03_tetris
 examples/games/04_space_invaders
+examples/games/05_swarm
+examples/games/06_snake_grid
