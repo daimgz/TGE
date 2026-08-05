@@ -18,6 +18,7 @@
 #include "tge-extra/animation.h"
 #include "tge-extra/collision.h"
 #include "tge-extra/entity.h"
+#include "tge-extra/vec2i.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -155,8 +156,9 @@ static bool spawn_enemy(Game *g)
     Body *b = (Body *)calloc(1, sizeof(*b));
     if (!b)
         return false;
-    int col = 3 + rand() % (WIN_W - 6);
-    int target_y = 2 + rand() % 2;
+    TGE_Vec2i spot = tge_rect_random_point(tge_rect(3, 2, WIN_W - 6, 2));
+    int col = spot.x;
+    int target_y = spot.y;
     b->kind = K_ENEMY;
     b->base_x = col;
     b->x = col;

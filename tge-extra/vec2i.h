@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "tge/tge_math.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,6 +27,20 @@ TGE_Vec2i tge_vec2i_scale(TGE_Vec2i v, int s);
 
 /* Component-wise equality. */
 bool tge_vec2i_eq(TGE_Vec2i a, TGE_Vec2i b);
+
+/* Clamp `p` to the inclusive cell bounds of `r` (x in [r.x, r.x+r.w-1], y in
+ * [r.y, r.y+r.h-1]). A degenerate rect (w or h <= 0) yields its top-left
+ * corner. Keeps playfield/camera points inside their field after a resize. */
+TGE_Vec2i tge_vec2i_clamp_rect(TGE_Vec2i p, TGE_Rect r);
+
+/* Random cell inside `r` (uniform over its w*h cells, using rand()).
+ * Degenerate rects yield the top-left corner. */
+TGE_Vec2i tge_rect_random_point(TGE_Rect r);
+
+/* Map a rect-local point to global coords by adding the rect origin:
+ * result = p + (r.x, r.y). Draw callers pass local playfield coordinates and
+ * the rect's origin offsets them into the canvas. */
+TGE_Vec2i tge_rect_translate_point(TGE_Rect r, TGE_Vec2i local);
 
 #ifdef __cplusplus
 }

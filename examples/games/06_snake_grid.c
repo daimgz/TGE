@@ -57,11 +57,6 @@
 
 typedef enum { SNAKE_RUNNING = 0, SNAKE_OVER } SnakeState;
 
-static int clamp_i(int v, int lo, int hi)
-{
-    return v < lo ? lo : (v > hi ? hi : v);
-}
-
 typedef struct {
     TGE_Vec2i *body; /* growable; capacity = playfield area */
     int cap;
@@ -87,8 +82,7 @@ static bool world_spawn_food(SnakeWorld *s)
     if (s->view.area.w * s->view.area.h - s->len <= 0)
         return false;
     for (;;) {
-        TGE_Vec2i p =
-            tge_vec2i(rand() % s->view.area.w, rand() % s->view.area.h);
+        TGE_Vec2i p = tge_rect_random_point(s->view.area);
         bool free_spot = true;
         for (int i = 0; i < s->len; i++) {
             if (tge_vec2i_eq(s->body[i], p)) {
@@ -150,10 +144,8 @@ static void world_layout(SnakeWorld *s, int gw, int gh)
         world_reset(s);
         break;
     case TGE_VIEW_RESIZED:
-        for (int i = 0; i < s->len; i++) {
-            s->body[i].x = clamp_i(s->body[i].x, 0, s->view.area.w - 1);
-            s->body[i].y = clamp_i(s->body[i].y, 0, s->view.area.h - 1);
-        }
+        for (int i = 0; i < s->len; i++)
+            s->body[i] = tge_vec2i_clamp_rect(s->body[i], s->view.area);
         if (s->food.x >= s->view.area.w || s->food.y >= s->view.area.h) {
             if (!world_spawn_food(s))
                 s->state = SNAKE_OVER;
@@ -264,15 +256,17 @@ static void renderer_draw(SnakeRenderer *r, TGE_Canvas *canvas,
         return;
     }
 
-    int ox = s->view.area.x;
-    int oy = s->view.area.y;
-    for (int i = 1; i < s->len; i++)
-        tge_grid_view_set_cell(&r->view, ox + s->body[i].x, oy + s->body[i].y,
-                               TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_grid_view_put(&r->view, ox + s->body[0].x, oy + s->body[0].y,
-                      &SPR_HEAD, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    tge_grid_view_put(&r->view, ox + s->food.x, oy + s->food.y, &SPR_FOOD,
-                      TGE_COLOR_RED, TGE_COLOR_BLACK);
+    for (int i = 1; i < s->len; i++) {
+        TGE_Vec2i gp = tge_rect_translate_point(s->view.area, s->body[i]);
+        tge_grid_view_set_cell(&r->view, gp.x, gp.y, TGE_COLOR_GREEN,
+                               TGE_COLOR_BLACK);
+    }
+    TGE_Vec2i hp = tge_rect_translate_point(s->view.area, s->body[0]);
+    tge_grid_view_put(&r->view, hp.x, hp.y, &SPR_HEAD, TGE_COLOR_GREEN,
+                      TGE_COLOR_BLACK);
+    TGE_Vec2i fp = tge_rect_translate_point(s->view.area, s->food);
+    tge_grid_view_put(&r->view, fp.x, fp.y, &SPR_FOOD, TGE_COLOR_RED,
+                      TGE_COLOR_BLACK);
 
     if (s->state == SNAKE_OVER) {
         const char *msg = " GAME OVER ";

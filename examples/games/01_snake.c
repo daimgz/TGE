@@ -42,11 +42,6 @@ static TGE_App *g_app = NULL;
 static TGE_Scene *g_title = NULL;
 static TGE_Scene *g_game = NULL;
 
-static int clamp_i(int v, int lo, int hi)
-{
-    return v < lo ? lo : (v > hi ? hi : v);
-}
-
 static void snake_init(GameState *s)
 {
     tge_view_init(&s->view, MIN_FW, MIN_FH);
@@ -58,8 +53,7 @@ static bool spawn_food(GameState *s)
     if (s->view.area.w * s->view.area.h - s->len <= 0)
         return false;
     for (;;) {
-        TGE_Vec2i p =
-            tge_vec2i(rand() % s->view.area.w, rand() % s->view.area.h);
+        TGE_Vec2i p = tge_rect_random_point(s->view.area);
         bool free_spot = true;
         for (int i = 0; i < s->len; i++) {
             if (tge_vec2i_eq(s->body[i], p)) {
@@ -119,10 +113,8 @@ static void snake_resize(GameState *s, int w, int h)
         snake_reset(s);
         break;
     case TGE_VIEW_RESIZED:
-        for (int i = 0; i < s->len; i++) {
-            s->body[i].x = clamp_i(s->body[i].x, 0, s->view.area.w - 1);
-            s->body[i].y = clamp_i(s->body[i].y, 0, s->view.area.h - 1);
-        }
+        for (int i = 0; i < s->len; i++)
+            s->body[i] = tge_vec2i_clamp_rect(s->body[i], s->view.area);
         if (s->food.x >= s->view.area.w || s->food.y >= s->view.area.h) {
             if (!spawn_food(s))
                 s->state = SNAKE_OVER;
@@ -204,14 +196,13 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
         return;
     }
 
-    int ox = s->view.area.x;
-    int oy = s->view.area.y;
     for (int i = 0; i < s->len; i++) {
-        tge_set_cell(canvas, ox + s->body[i].x, oy + s->body[i].y,
-                     (i == 0) ? '@' : 'o', TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+        TGE_Vec2i gp = tge_rect_translate_point(s->view.area, s->body[i]);
+        tge_set_cell(canvas, gp.x, gp.y, (i == 0) ? '@' : 'o',
+                     TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     }
-    tge_set_cell(canvas, ox + s->food.x, oy + s->food.y, '*', TGE_COLOR_RED,
-                 TGE_COLOR_BLACK);
+    TGE_Vec2i fp = tge_rect_translate_point(s->view.area, s->food);
+    tge_set_cell(canvas, fp.x, fp.y, '*', TGE_COLOR_RED, TGE_COLOR_BLACK);
 
     if (s->state == SNAKE_OVER) {
         const char *msg = " GAME OVER ";
