@@ -42,6 +42,7 @@ examples/games/03_tetris
 examples/games/04_space_invaders
 examples/games/05_swarm
 examples/games/06_snake_grid
+examples/games/07_breakout
 
 tests/test_grid_view
 tests/test_input_buffer
