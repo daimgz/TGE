@@ -85,6 +85,20 @@ int tge_grid_height(const TGE_Grid *g)
     return h / g->cell_h;
 }
 
+void tge_grid_size_for(const TGE_Grid *g, int w, int h, int *gw, int *gh)
+{
+    if (!g || !gw || !gh)
+        return;
+    int lw = w - g->ox;
+    int lh = h - g->oy;
+    if (lw < 0)
+        lw = 0;
+    if (lh < 0)
+        lh = 0;
+    *gw = lw / g->cell_w;
+    *gh = lh / g->cell_h;
+}
+
 /* Decode `sprite` into `buf` (capacity `cap`). Returns the number of glyphs on
  * success, -1 on error; a message is printed to stderr and the sprite is
  * ignored so misconfigurations are not silent. */

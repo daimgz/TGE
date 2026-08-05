@@ -117,6 +117,12 @@ void tge_grid_set_cell_size(TGE_Grid *g, int cell_w, int cell_h);
 int tge_grid_width(const TGE_Grid *g);
 int tge_grid_height(const TGE_Grid *g);
 
+/* Logical size for an arbitrary physical surface of w x h, without touching
+ * a canvas. Same math as tge_grid_width/height (origin + cell size applied to
+ * the given w/h), for callers that have raw dimensions instead of a canvas
+ * (e.g. a resize event before the canvas is updated). */
+void tge_grid_size_for(const TGE_Grid *g, int w, int h, int *gw, int *gh);
+
 /* Write one logical cell with the `tile` sprite of the grid theme. An invalid
  * tile or a theme with no sprite for it is skipped with a message on stderr. */
 void tge_grid_put_tile(TGE_Grid *g, int lx, int ly, TGE_GridTile tile,

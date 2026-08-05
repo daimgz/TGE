@@ -77,6 +77,48 @@ TGE_TEST(origin_and_cell_size_change_size)
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(size_for_matches_width_height)
+{
+    TGE_Canvas *c = tge_canvas_create(40, 20);
+    TGE_Grid g;
+    tge_grid_init(&g, c);
+    tge_grid_set_cell_size(&g, 2, 1);
+    tge_grid_set_origin(&g, 10, 5);
+    int gw, gh;
+    tge_grid_size_for(&g, 40, 20, &gw, &gh);
+    TGE_ASSERT(gw == tge_grid_width(&g) && gh == tge_grid_height(&g),
+               "raw size matches canvas-backed size");
+    tge_grid_size_for(&g, 80, 38, &gw, &gh);
+    TGE_ASSERT(gw == 35 && gh == 33, "(80-10)/2 and (38-5)/1");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(size_for_no_canvas_needed)
+{
+    TGE_Grid g;
+    tge_grid_init(&g, NULL);
+    tge_grid_set_cell_size(&g, 2, 1);
+    tge_grid_set_origin(&g, 0, 1);
+    int gw, gh;
+    tge_grid_size_for(&g, 80, 24, &gw, &gh);
+    TGE_ASSERT(gw == 40 && gh == 23, "2x1 cells, HUD row on top");
+    tge_grid_size_for(&g, 0, 0, &gw, &gh);
+    TGE_ASSERT(gw == 0 && gh == 0, "degenerate size");
+}
+
+TGE_TEST(size_for_null_safety)
+{
+    TGE_Grid g;
+    tge_grid_init(&g, NULL);
+    int gw = -1, gh = -1;
+    tge_grid_size_for(NULL, 80, 24, &gw, &gh);
+    TGE_ASSERT(gw == -1 && gh == -1, "NULL grid leaves outputs");
+    tge_grid_size_for(&g, 80, 24, NULL, &gh);
+    TGE_ASSERT(gh == -1, "NULL gw leaves gh");
+    tge_grid_size_for(&g, 80, 24, &gw, NULL);
+    TGE_ASSERT(gw == -1, "NULL gh leaves gw");
+}
+
 TGE_TEST(set_cell_fills_block_with_fill_tile)
 {
     TGE_Canvas *c = tge_canvas_create(8, 4);
@@ -564,6 +606,9 @@ int main(void)
     test_init_defaults();
     test_square_pixels_helper();
     test_origin_and_cell_size_change_size();
+    test_size_for_matches_width_height();
+    test_size_for_no_canvas_needed();
+    test_size_for_null_safety();
     test_set_cell_fills_block_with_fill_tile();
     test_set_cell_1x1_writes_one_physical_cell();
     test_set_cell_clips_at_canvas_edge();
