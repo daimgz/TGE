@@ -14,9 +14,7 @@ static bool cell_is(const TGE_Canvas *c, int x, int y, uint32_t ch)
 {
     const TGE_Cell *cell = cell_at(c, x, y);
     return cell->ch == ch && cell->fg.data.index == TGE_COLOR_GREEN.data.index;
-}
-
-TGE_TEST(init_1x1)
+}TGE_TEST(init_1x1)
 {
     TGE_Canvas *c = tge_canvas_create(40, 20);
     TGE_GridView v;
@@ -169,6 +167,96 @@ TGE_TEST(put_draws_sprite)
     tge_canvas_destroy(c);
 }
 
+static TGE_View layout_for(int margin, int w, int h)
+{
+    TGE_View layout;
+    tge_view_init(&layout, 10, 6);
+    layout.margin = margin;
+    tge_view_update(&layout, w, h);
+    return layout;
+}
+
+TGE_TEST(set_cell_local_maps_through_layout)
+{
+    TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
+    TGE_GridView v;
+    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_View layout = layout_for(1, 12, 8);
+    tge_grid_view_set_cell_local(&v, &layout, tge_vec2i(0, 0),
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 2, 1, 0x2588), "local (0,0) -> physical (2,1)");
+    TGE_ASSERT(cell_is(c, 3, 1, 0x2588), "2x1 right col");
+    TGE_ASSERT(cell_at(c, 0, 1)->ch == 0, "left margin untouched");
+    TGE_ASSERT(cell_at(c, 1, 1)->ch == 0, "grid border column untouched");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(set_cell_local_uses_custom_margin)
+{
+    TGE_Canvas *c = tge_canvas_create(32, 12); /* 16x12 grid cells at 2x1 */
+    TGE_GridView v;
+    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_View layout = layout_for(3, 16, 12);
+    tge_grid_view_set_cell_local(&v, &layout, tge_vec2i(0, 0),
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 6, 3, 0x2588), "margin 3 -> physical (6,3)");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(put_local_maps_through_layout)
+{
+    static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
+    TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
+    TGE_GridView v;
+    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_View layout = layout_for(1, 12, 8);
+    tge_grid_view_put_local(&v, &layout, tge_vec2i(1, 2), &cross,
+                            TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 4, 3)->ch == '<', "local (1,2) -> physical (4,3)");
+    TGE_ASSERT(cell_at(c, 5, 3)->ch == '>', "sprite right col");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(put_attr_local_sets_attr)
+{
+    static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
+    TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
+    TGE_GridView v;
+    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_View layout = layout_for(1, 12, 8);
+    tge_grid_view_put_attr_local(&v, &layout, tge_vec2i(1, 2), &cross,
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK,
+                                 TGE_CELL_ATTR_BOLD);
+    TGE_ASSERT(cell_at(c, 4, 3)->attr & TGE_CELL_ATTR_BOLD,
+               "attr forwarded to the cell");
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(local_ops_null_safety)
+{
+    static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
+    TGE_View layout = layout_for(1, 12, 8);
+    tge_grid_view_set_cell_local(NULL, &layout, tge_vec2i(0, 0),
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_view_put_local(NULL, &layout, tge_vec2i(0, 0), &cross,
+                            TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_view_put_attr_local(NULL, &layout, tge_vec2i(0, 0), &cross,
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK,
+                                 TGE_CELL_ATTR_BOLD);
+    TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
+    TGE_GridView v;
+    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_set_cell_local(&v, NULL, tge_vec2i(0, 0),
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_view_put_local(&v, NULL, tge_vec2i(0, 0), &cross,
+                            TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_view_put_attr_local(&v, NULL, tge_vec2i(0, 0), &cross,
+                                 TGE_COLOR_GREEN, TGE_COLOR_BLACK,
+                                 TGE_CELL_ATTR_BOLD);
+    TGE_ASSERT(cell_at(c, 2, 1)->ch == 0, "NULL layout draws nothing");
+    tge_canvas_destroy(c);
+}
+
 TGE_TEST(null_safety)
 {
     tge_grid_view_init(NULL, NULL, NULL, TGE_GRID_SCALE_1X1);
@@ -194,6 +282,11 @@ int main(void)
     test_draw_border_square_cells();
     test_set_cell_writes_default_sprite();
     test_put_draws_sprite();
+    test_set_cell_local_maps_through_layout();
+    test_set_cell_local_uses_custom_margin();
+    test_put_local_maps_through_layout();
+    test_put_attr_local_sets_attr();
+    test_local_ops_null_safety();
     test_null_safety();
     return tge_test_report();
 }

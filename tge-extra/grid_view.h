@@ -3,6 +3,8 @@
 
 #include "tge-extra/grid.h"
 
+#include "tge-extra/view.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -75,6 +77,31 @@ void tge_grid_view_put(TGE_GridView *view, int lx, int ly,
 void tge_grid_view_put_attr(TGE_GridView *view, int lx, int ly,
                             const TGE_Sprite *sprite, TGE_Color fg,
                             TGE_Color bg, uint8_t attr);
+
+/* The _local variants take a playfield coordinate local to a TGE_View
+ * (0..w-1, 0..h-1) and translate it through the layout before drawing, so
+ * games write in their own logical space instead of mapping coordinates by
+ * hand:
+ *
+ *   tge_grid_view_set_cell_local(&gv, &world->view, body[i], GREEN, BLACK);
+ *
+ * The three share the same shape: (grid view, layout, local point, style...),
+ * differing only in what they draw. */
+
+/* Write one logical cell with the theme `default_sprite` at the local
+ * coordinate `local` of `layout`. */
+void tge_grid_view_set_cell_local(TGE_GridView *view, const TGE_View *layout,
+                                  TGE_Vec2i local, TGE_Color fg, TGE_Color bg);
+
+/* Draw a general sprite at the local coordinate `local` of `layout`. */
+void tge_grid_view_put_local(TGE_GridView *view, const TGE_View *layout,
+                             TGE_Vec2i local, const TGE_Sprite *sprite,
+                             TGE_Color fg, TGE_Color bg);
+
+/* Same as tge_grid_view_put_local plus cell attributes. */
+void tge_grid_view_put_attr_local(TGE_GridView *view, const TGE_View *layout,
+                                  TGE_Vec2i local, const TGE_Sprite *sprite,
+                                  TGE_Color fg, TGE_Color bg, uint8_t attr);
 
 #ifdef __cplusplus
 }

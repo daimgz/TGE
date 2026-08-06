@@ -67,3 +67,32 @@ void tge_grid_view_put_attr(TGE_GridView *view, int lx, int ly,
         return;
     tge_grid_put_attr(&view->grid, lx, ly, sprite, fg, bg, attr);
 }
+
+void tge_grid_view_set_cell_local(TGE_GridView *view, const TGE_View *layout,
+                                  TGE_Vec2i local, TGE_Color fg, TGE_Color bg)
+{
+    if (!view || !layout)
+        return;
+    TGE_Vec2i p = tge_view_translate(layout, local);
+    tge_grid_view_set_cell(view, p.x, p.y, fg, bg);
+}
+
+void tge_grid_view_put_local(TGE_GridView *view, const TGE_View *layout,
+                             TGE_Vec2i local, const TGE_Sprite *sprite,
+                             TGE_Color fg, TGE_Color bg)
+{
+    if (!view || !layout)
+        return;
+    TGE_Vec2i p = tge_view_translate(layout, local);
+    tge_grid_view_put(view, p.x, p.y, sprite, fg, bg);
+}
+
+void tge_grid_view_put_attr_local(TGE_GridView *view, const TGE_View *layout,
+                                  TGE_Vec2i local, const TGE_Sprite *sprite,
+                                  TGE_Color fg, TGE_Color bg, uint8_t attr)
+{
+    if (!view || !layout)
+        return;
+    TGE_Vec2i p = tge_view_translate(layout, local);
+    tge_grid_view_put_attr(view, p.x, p.y, sprite, fg, bg, attr);
+}
