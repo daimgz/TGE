@@ -1049,3 +1049,41 @@ abstracción, no solo el código: el engine habla de escenas, el juego habla de
 *Fin del ADR. Decisiones vinculantes hasta que un nuevo ADR las modifique.
 Ninguna decisión es inmutable, pero cambiar un ADR requiere justificación
 explícita.*
+
+## ADR-028: Colores default de la terminal
+
+**Decisión:** TGE tiene un modo de color `TGE_COLOR_MODE_DEFAULT` (macros
+`TGE_COLOR_DEFAULT` para fg y bg). Una celda en modo default no especifica
+color: el backend ANSI emite SGR `39` (foreground) y `49` (background) y
+restaura los defaults de la terminal, en vez de forzar un color de paleta o
+RGB. El canvas inicial (current y previous) se limpia a `TGE_COLOR_DEFAULT`
+en lugar de negro.
+
+**Motivo:** el engine no impone estética. La terminal ya tiene un tema del
+usuario (paleta, fondo transparente, wallpaper); TGE debe dibujar encima de
+ese fondo y respetarlo por defecto, no taparlo con negro. Con la paleta
+indexed o RGB, TGE tenía una opinión fuerte ("el fondo de una app TGE es
+negro") que chocaba con la configuración del usuario.
+
+`TGE_COLOR_DEFAULT` **no significa transparente ni alpha blending**: no deja
+ver lo que había dibujado debajo (el canvas sigue siendo una composición
+propia). Solo significa "no emitir un color explícito y restaurar el default
+de la terminal".
+
+**Consecuencias:**
+
+- `TGE_ColorMode` gana un tercer valor; la comparación de celdas del
+  renderer trata el modo default explícitamente (un default es igual a otro
+  default, sin depender del contenido del union).
+- La emisión ANSI usa `39`/`49`; el estado de estilo inicial se asume en
+  default (coincide con el terminal tras el reset inicial).
+- El clear inicial de `app.c` usa default: las aplicaciones heredan el tema
+  del usuario por defecto.
+- Los ejemplos/juegos mantienen sus colores explícitos donde el negro (u
+  otro bg) es parte de la intención visual; migrarlos a default es una
+  decisión de cada renderer, no de esta pasada.
+- Aditivo en API pública pre-1.0 (ver `docs/API_STABILITY.md`).
+
+*Fin del ADR. Decisiones vinculantes hasta que un nuevo ADR las modifique.
+Ninguna decisión es inmutable, pero cambiar un ADR requiere justificación
+explícita.*

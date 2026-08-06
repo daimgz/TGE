@@ -12,10 +12,17 @@ extern "C" {
 typedef enum {
     TGE_COLOR_MODE_INDEXED = 0,
     TGE_COLOR_MODE_RGB     = 1,
+    /* No color at all: the terminal's own foreground/background. The backend
+     * emits SGR 39/49 instead of forcing a palette or RGB value, so the
+     * user's terminal theme shows through. This is not transparency or alpha
+     * blending: the canvas still composes its own content; the cell simply
+     * does not specify a color and the terminal default is restored. */
+    TGE_COLOR_MODE_DEFAULT = 2,
 } TGE_ColorMode;
 
 /* A terminal color. Indexed mode selects one of the 8 ANSI palette slots;
- * RGB mode uses 24-bit color (when the terminal supports it). */
+ * RGB mode uses 24-bit color (when the terminal supports it); default mode
+ * leaves the color to the terminal (see TGE_COLOR_DEFAULT). */
 typedef struct {
     uint8_t mode;
     union {
@@ -35,6 +42,8 @@ typedef struct {
 #define TGE_COLOR_MAGENTA ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 5 })
 #define TGE_COLOR_CYAN    ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 6 })
 #define TGE_COLOR_WHITE   ((TGE_Color){ .mode = TGE_COLOR_MODE_INDEXED, .data.index = 7 })
+/* The terminal's current foreground/background: emit SGR 39/49. */
+#define TGE_COLOR_DEFAULT ((TGE_Color){ .mode = TGE_COLOR_MODE_DEFAULT })
 
 /* Color constructors. */
 TGE_Color tge_color_indexed(uint8_t index); /* Palette entry [0..7]; see TGE_COLOR_*. */

@@ -12,6 +12,7 @@
 
 typedef struct {
     bool rgb;
+    bool is_default; /* terminal default color: emit SGR 39/49 */
     uint8_t index;
     uint8_t rgbv[3];
 } ANSIStyle;
@@ -64,6 +65,13 @@ static void obuf_puts(ANSIState *s, const char *str)
 
 static void style_from_color(const TGE_Color *c, ANSIStyle *out)
 {
+    out->is_default = false;
+    if (c->mode == TGE_COLOR_MODE_DEFAULT) {
+        out->rgb = false;
+        out->index = 0;
+        out->is_default = true;
+        return;
+    }
     if (c->mode == TGE_COLOR_MODE_RGB) {
         out->rgb = true;
         out->rgbv[0] = c->data.rgb.r;
@@ -77,6 +85,10 @@ static void style_from_color(const TGE_Color *c, ANSIStyle *out)
 
 static bool style_equal(const ANSIStyle *a, const ANSIStyle *b)
 {
+    if (a->is_default != b->is_default)
+        return false;
+    if (a->is_default)
+        return true;
     if (a->rgb != b->rgb)
         return false;
     if (a->rgb)
@@ -109,7 +121,11 @@ static void emit_style(ANSIState *s, TGE_Color fg, TGE_Color bg, uint8_t attr)
     if (attr & 16) { buf[len++] = ';'; buf[len++] = '5'; }
     if (attr & 32) { buf[len++] = ';'; buf[len++] = '7'; }
     if (!same_fg) {
-        if (f.rgb) {
+        if (f.is_default) {
+            buf[len++] = ';';
+            buf[len++] = '3';
+            buf[len++] = '9';
+        } else if (f.rgb) {
             int n = snprintf(buf + len, (size_t)(96 - len), ";38;2;%d;%d;%d",
                              f.rgbv[0], f.rgbv[1], f.rgbv[2]);
             len += n;
@@ -119,7 +135,11 @@ static void emit_style(ANSIState *s, TGE_Color fg, TGE_Color bg, uint8_t attr)
         }
     }
     if (!same_bg) {
-        if (b.rgb) {
+        if (b.is_default) {
+            buf[len++] = ';';
+            buf[len++] = '4';
+            buf[len++] = '9';
+        } else if (b.rgb) {
             int n = snprintf(buf + len, (size_t)(96 - len), ";48;2;%d;%d;%d",
                              b.rgbv[0], b.rgbv[1], b.rgbv[2]);
             len += n;
@@ -166,8 +186,8 @@ static bool ansi_init(void *data, int w, int h)
     s->w = w;
     s->h = h;
     s->out = s->out ? s->out : stdout;
-    s->last_fg.index = 0;
-    s->last_bg.index = 0;
+    s->last_fg.is_default = true;
+    s->last_bg.is_default = true;
     s->last_attr = -1;
     s->cur_x = -1;
     s->cur_y = -1;

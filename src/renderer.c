@@ -11,6 +11,10 @@ static bool cell_equal(const TGE_Cell *a, const TGE_Cell *b)
         return a->fg.data.index == b->fg.data.index &&
                a->bg.data.index == b->bg.data.index;
     }
+    /* Default colors carry no payload: both cells already have mode DEFAULT,
+     * so they are always equal regardless of any stale union data. */
+    if (a->fg.mode == TGE_COLOR_MODE_DEFAULT)
+        return true;
     return a->fg.data.rgb.r == b->fg.data.rgb.r &&
            a->fg.data.rgb.g == b->fg.data.rgb.g &&
            a->fg.data.rgb.b == b->fg.data.rgb.b &&

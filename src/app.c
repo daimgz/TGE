@@ -48,7 +48,7 @@ static void handle_events(TGE_App *app, double now)
             int h = ev.data.resize.h;
             tge_canvas_resize(app->current, w, h);
             tge_canvas_resize(app->previous, w, h);
-            tge_clear(app->previous, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+            tge_clear(app->previous, ' ', TGE_COLOR_DEFAULT, TGE_COLOR_DEFAULT);
             ensure_diff_capacity(app, w, h);
             /* The diff only emits changed cells; after a resize the terminal
              * still shows glyphs from the old size, so repaint everything. */
@@ -84,7 +84,7 @@ static void update_scene(TGE_App *app, float dt)
 
 static void draw_scene(TGE_App *app)
 {
-    tge_clear(app->current, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_clear(app->current, ' ', TGE_COLOR_DEFAULT, TGE_COLOR_DEFAULT);
     if (app->scene_count > 0) {
         for (int i = 0; i < app->scene_count; i++) {
             TGE_Scene *sc = app->scenes[i];
