@@ -1,4 +1,32 @@
+/* 03_tetris - Tetris on a grid with scheduler-driven gravity.
+ *
+ * The Grid renderer plus three tge-extra modules, each demonstrating why it
+ * exists:
+ *
+ *   - Grid   two TGE_Grids (board 10x20 + NEXT preview) with 2x1 cells.
+ *   - Timer  the rotation debounce: a gameplay cooldown (accumulator timer).
+ *            "Can I rotate again yet?" is game state, not a motor event.
+ *   - View   minimum playfield gate: "too small", wait for a valid layout
+ *            (TGE_VIEW_FIRST_VALID) and keep/restart on resize.
+ *   - Vec2i  the active piece position as a vector (movement with
+ *            tge_vec2i_add) instead of loose (x, y) fields.
+ *
+ * The distinction the example is built to teach:
+ *
+ *   - Core scheduler (tge_runtime_call_every) -> periodic motor events:
+ *     gravity fires every interval and is rescheduled on level up.
+ *   - tge-extra TGE_Timer (accumulator fed per frame) -> gameplay cooldowns:
+ *     rotation is a classic cooldown of ROTATE_DEBOUNCE, not a motor event.
+ *
+ * Two concepts, two mechanisms, one example each: gravity stays on the
+ * scheduler, rotation uses a timer.
+ */
 #include "tge/tge.h"
+
+#include "tge-extra/grid.h"
+#include "tge-extra/timer.h"
+#include "tge-extra/vec2i.h"
+#include "tge-extra/view.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -7,8 +35,11 @@
 
 #include <math.h>
 
-#define WIN_W 40
-#define WIN_H 24
+/* Interior (inside the view margin) the fixed composition needs: board frame
+ * 1..22, NEXT box right edge at column 33, controls row at the bottom. The
+ * requested window is the minimum + the 1-cell margin on each side. */
+#define MIN_FW 34
+#define MIN_FH 22
 
 #define COLS 10
 #define ROWS 20
@@ -46,21 +77,90 @@ static const Tetromino kPieces[7] = {
 typedef struct {
     int board[ROWS][COLS];
     Tetromino cur;
-    int cur_x, cur_y;
+    TGE_Vec2i pos; /* active piece position in board cells */
     int next;
     int score;
     int level;
     int lines;
     int gravity_timer;
     TetrisState state;
-    float now;
-    float last_rotate;
+    TGE_Timer rot; /* rotation cooldown (classic debounce) */
+    TGE_View view;
+    int last_w, last_h; /* last surface the view was computed for (-1 = none) */
 } Tetris;
 
+/* The board and the NEXT preview are two separate coordinate spaces, so the
+ * renderer owns one TGE_Grid per region instead of drawing both through the
+ * board grid: the board is a logical 10x20 area at (OX, OY) and the preview
+ * its own logical 5x5 area at the NEXT box. Cell size 2x1 and the origins are
+ * permanent properties of the renderer; only the canvas changes per frame
+ * (the app swaps its double buffers), so renderer_attach() just re-attaches. */
+typedef struct {
+    TGE_Grid board;   /* origin (OX, OY) */
+    TGE_Grid preview; /* origin (24, 2), NEXT box */
+} TetrisRenderer;
+
+static void renderer_init(TetrisRenderer *r)
+{
+    tge_grid_init(&r->board, NULL);
+    tge_grid_set_cell_size(&r->board, 2, 1);
+    tge_grid_set_origin(&r->board, OX, OY);
+
+    tge_grid_init(&r->preview, NULL);
+    tge_grid_set_cell_size(&r->preview, 2, 1);
+    tge_grid_set_origin(&r->preview, 24, 2);
+}
+
+/* Sync the renderer with the canvas currently being drawn (the app swaps its
+ * double buffers). Nothing is reconfigured: geometry and theme persist. */
+static void renderer_attach(TetrisRenderer *r, TGE_Canvas *canvas)
+{
+    tge_grid_attach(&r->board, canvas);
+    tge_grid_attach(&r->preview, canvas);
+}
+
+static void renderer_draw_board(TetrisRenderer *r, const Tetris *t)
+{
+    for (int y = 0; y < ROWS; y++)
+        for (int x = 0; x < COLS; x++)
+            if (t->board[y][x])
+                tge_grid_set_cell(&r->board, x, y,
+                                  tge_color_indexed(
+                                      kPieces[t->board[y][x] - 1].color),
+                                  TGE_COLOR_BLACK);
+}
+
+static void renderer_draw_piece(TetrisRenderer *r, const Tetris *t)
+{
+    TGE_Color col = tge_color_indexed(t->cur.color);
+    for (int y = 0; y < t->cur.n; y++)
+        for (int x = 0; x < t->cur.n; x++)
+            if (t->cur.cells[y][x])
+                tge_grid_set_cell(&r->board, t->pos.x + x, t->pos.y + y, col,
+                                  TGE_COLOR_BLACK);
+}
+
+static void renderer_draw_next(TetrisRenderer *r, const Tetris *t)
+{
+    const Tetromino *nx = &kPieces[t->next];
+    int npx = (5 - nx->n) / 2;
+    int npy = (5 - nx->n) / 2;
+    for (int y = 0; y < nx->n; y++)
+        for (int x = 0; x < nx->n; x++)
+            if (nx->cells[y][x])
+                tge_grid_set_cell(&r->preview, npx + x, npy + y,
+                                  tge_color_indexed(nx->color),
+                                  TGE_COLOR_BLACK);
+}
+
+/* The game as a whole: the world (rules) + the renderer (screen), wired
+ * together by the scene callbacks. */
+typedef struct {
+    Tetris world;
+    TetrisRenderer renderer;
+} TetrisGame;
+
 static TGE_App *g_app = NULL;
-static TGE_Scene g_menu;
-static TGE_Scene g_game;
-static Tetris g_tetris;
 
 static void rotate_cw(Tetromino *p)
 {
@@ -71,12 +171,12 @@ static void rotate_cw(Tetromino *p)
     memcpy(p->cells, tmp, sizeof(p->cells));
 }
 
-static int fits_shape(const Tetromino *p, const Tetris *t, int px, int py)
+static int fits_shape(const Tetromino *p, const Tetris *t, TGE_Vec2i pos)
 {
     for (int y = 0; y < p->n; y++)
         for (int x = 0; x < p->n; x++)
             if (p->cells[y][x]) {
-                int bx = px + x, by = py + y;
+                int bx = pos.x + x, by = pos.y + y;
                 if (bx < 0 || bx >= COLS || by < 0 || by >= ROWS)
                     return 0;
                 if (t->board[by][bx])
@@ -85,9 +185,9 @@ static int fits_shape(const Tetromino *p, const Tetris *t, int px, int py)
     return 1;
 }
 
-static int fits(Tetris *t, int px, int py)
+static int fits(Tetris *t, TGE_Vec2i pos)
 {
-    return fits_shape(&t->cur, t, px, py);
+    return fits_shape(&t->cur, t, pos);
 }
 
 static float gravity_interval(int level)
@@ -150,9 +250,8 @@ static void spawn(Tetris *t)
 {
     t->cur = kPieces[t->next];
     t->next = rand() % 7;
-    t->cur_x = (COLS - t->cur.n) / 2;
-    t->cur_y = 0;
-    if (!fits(t, t->cur_x, t->cur_y))
+    t->pos = tge_vec2i((COLS - t->cur.n) / 2, 0);
+    if (!fits(t, t->pos))
         game_over(t);
 }
 
@@ -161,7 +260,7 @@ static void lock(Tetris *t)
     for (int y = 0; y < t->cur.n; y++)
         for (int x = 0; x < t->cur.n; x++)
             if (t->cur.cells[y][x])
-                t->board[t->cur_y + y][t->cur_x + x] = t->cur.type + 1;
+                t->board[t->pos.y + y][t->pos.x + x] = t->cur.type + 1;
     clear_lines(t);
     if (t->state == STATE_PLAYING)
         spawn(t);
@@ -174,19 +273,53 @@ static void reset(Tetris *t)
     t->level = 1;
     t->lines = 0;
     t->state = STATE_PLAYING;
-    t->now = 0.0f;
-    t->last_rotate = -ROTATE_DEBOUNCE;
     t->next = rand() % 7;
+    tge_timer_init(&t->rot, ROTATE_DEBOUNCE);
+    /* Preload the cooldown so the very first rotation after a reset is
+     * immediate (the old `last_rotate = -ROTATE_DEBOUNCE` did the same). */
+    tge_timer_update(&t->rot, ROTATE_DEBOUNCE);
     set_gravity(t);
     spawn(t);
+}
+
+/* Recompute the playfield gate for a new surface size. The board is a fixed
+ * 10x20 so there is nothing to clamp on resize: FIRST_VALID starts a fresh
+ * game, RESIZED keeps it running, INVALID shows "too small". */
+static void tetris_resize(Tetris *t, int w, int h)
+{
+    t->last_w = w;
+    t->last_h = h;
+    switch (tge_view_update(&t->view, w, h)) {
+    case TGE_VIEW_FIRST_VALID:
+        reset(t);
+        break;
+    case TGE_VIEW_RESIZED:
+    case TGE_VIEW_INVALID:
+    default:
+        break;
+    }
+}
+
+/* One-shot constructor for a fresh game: permanent renderer geometry plus a
+ * reset world. Kept together so future game/renderer state has a single
+ * setup point. */
+static void tetris_game_init(TetrisGame *g)
+{
+    renderer_init(&g->renderer);
+    g->world.gravity_timer = -1;
+    g->world.last_w = -1;
+    g->world.last_h = -1;
+    tge_view_init(&g->world.view, MIN_FW, MIN_FH);
+    reset(&g->world);
 }
 
 static void move_cur(Tetris *t, int dx)
 {
     if (t->state != STATE_PLAYING)
         return;
-    if (fits(t, t->cur_x + dx, t->cur_y))
-        t->cur_x += dx;
+    TGE_Vec2i np = tge_vec2i_add(t->pos, tge_vec2i(dx, 0));
+    if (fits(t, np))
+        t->pos = np;
 }
 
 static void try_rotate(Tetris *t)
@@ -196,23 +329,27 @@ static void try_rotate(Tetris *t)
     Tetromino rot = t->cur;
     rotate_cw(&rot);
     static const int kicks[5] = { 0, -1, 1, -2, 2 };
-    for (int i = 0; i < 5; i++)
-        if (fits_shape(&rot, t, t->cur_x + kicks[i], t->cur_y)) {
+    for (int i = 0; i < 5; i++) {
+        TGE_Vec2i np = tge_vec2i_add(t->pos, tge_vec2i(kicks[i], 0));
+        if (fits_shape(&rot, t, np)) {
             t->cur = rot;
-            t->cur_x += kicks[i];
+            t->pos = np;
             return;
         }
+    }
 }
 
+/* Classic cooldown: at most one rotation every ROTATE_DEBOUNCE seconds no
+ * matter how fast the key repeats. The previous version used a sliding
+ * window where each press restarted the wait; the cooldown is simpler and
+ * is what a player expects. */
 static void rotate_pressed(Tetris *t)
 {
     if (t->state != STATE_PLAYING)
         return;
-    if (t->now - t->last_rotate < ROTATE_DEBOUNCE) {
-        t->last_rotate = t->now;
+    if (!tge_timer_tick(&t->rot))
         return;
-    }
-    t->last_rotate = t->now;
+    tge_timer_reset(&t->rot);
     try_rotate(t);
 }
 
@@ -220,18 +357,19 @@ static void hard_drop(Tetris *t)
 {
     if (t->state != STATE_PLAYING)
         return;
-    int d = 0;
-    while (fits(t, t->cur_x, t->cur_y + d + 1))
-        d++;
-    t->cur_y += d;
+    TGE_Vec2i np = t->pos;
+    while (fits(t, tge_vec2i_add(np, tge_vec2i(0, 1))))
+        np = tge_vec2i_add(np, tge_vec2i(0, 1));
+    int d = np.y - t->pos.y;
+    t->pos = np;
     t->score += 2 * d;
     lock(t);
 }
 
 static void soft_drop(Tetris *t)
 {
-    if (fits(t, t->cur_x, t->cur_y + 1)) {
-        t->cur_y++;
+    if (fits(t, tge_vec2i_add(t->pos, tge_vec2i(0, 1)))) {
+        t->pos.y++;
         t->score++;
     }
 }
@@ -240,77 +378,64 @@ static void gravity_step(Tetris *t)
 {
     if (t->state != STATE_PLAYING)
         return;
-    if (fits(t, t->cur_x, t->cur_y + 1))
-        t->cur_y++;
+    if (fits(t, tge_vec2i_add(t->pos, tge_vec2i(0, 1))))
+        t->pos.y++;
     else
         lock(t);
 }
 
-static void game_init(TGE_Scene *scene)
-{
-    Tetris *t = (Tetris *)scene->userdata;
-    t->gravity_timer = -1;
-    reset(t);
-}
-
 static void game_update(TGE_Scene *scene, float dt)
 {
-    Tetris *t = (Tetris *)scene->userdata;
-    t->now += dt;
-}
-
-static void draw_block(TGE_Canvas *c, int x, int y, TGE_Color col)
-{
-    tge_set_cell(c, x, y, 0x2588, col, TGE_COLOR_BLACK);
+    TetrisGame *g = (TetrisGame *)scene->userdata;
+    tge_timer_update(&g->world.rot, dt);
 }
 
 static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
-    Tetris *t = (Tetris *)scene->userdata;
+    TetrisGame *g = (TetrisGame *)scene->userdata;
+    Tetris *t = &g->world;
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
 
     tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
 
-    tge_draw_frame(canvas, OX - 1, OY - 1, COLS + 2, ROWS + 2, TGE_COLOR_CYAN,
-                   TGE_COLOR_BLACK);
+    /* Layout is computed once here (the initial size never fires a RESIZE
+     * event) and afterwards only on TGE_EVENT_RESIZE. */
+    if (t->last_w < 0)
+        tetris_resize(t, w, h);
 
-    for (int y = 0; y < ROWS; y++)
-        for (int x = 0; x < COLS; x++)
-            if (t->board[y][x])
-                draw_block(canvas, OX + x, OY + y,
-                           tge_color_indexed(kPieces[t->board[y][x] - 1].color));
+    if (!t->view.valid) {
+        tge_draw_centered_text(canvas, h / 2, " too small ",
+                               TGE_COLOR_RED, TGE_COLOR_BLACK);
+        return;
+    }
 
-    TGE_Color col = tge_color_indexed(t->cur.color);
-    for (int y = 0; y < t->cur.n; y++)
-        for (int x = 0; x < t->cur.n; x++)
-            if (t->cur.cells[y][x])
-                draw_block(canvas, OX + t->cur_x + x, OY + t->cur_y + y, col);
+    renderer_attach(&g->renderer, canvas);
 
-    tge_draw_text(canvas, 17, 1, " NEXT ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_draw_frame(canvas, 16, 2, 10, 5, TGE_COLOR_BLUE, TGE_COLOR_BLACK);
-    const Tetromino *nx = &kPieces[t->next];
-    int px = 16 + (10 - nx->n) / 2;
-    int py = 2 + (5 - nx->n) / 2;
-    for (int y = 0; y < nx->n; y++)
-        for (int x = 0; x < nx->n; x++)
-            if (nx->cells[y][x])
-                draw_block(canvas, px + x, py + y, tge_color_indexed(nx->color));
+    tge_draw_frame(canvas, OX - 1, OY - 1, COLS * 2 + 2, ROWS + 2,
+                   TGE_COLOR_CYAN, TGE_COLOR_BLACK);
 
-    tge_draw_text(canvas, 17, 9, " SCORE ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_printf(canvas, 17, 10, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
-               t->score);
-    tge_draw_text(canvas, 17, 12, " LEVEL ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_printf(canvas, 17, 13, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
-               t->level);
-    tge_draw_text(canvas, 17, 15, " LINES ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_printf(canvas, 17, 16, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
-               t->lines);
+    renderer_draw_board(&g->renderer, &g->world);
+    renderer_draw_piece(&g->renderer, &g->world);
+    renderer_draw_next(&g->renderer, &g->world);
+
+    tge_draw_text(canvas, 25, 1, " NEXT ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_draw_frame(canvas, 24, 2, 10, 5, TGE_COLOR_BLUE, TGE_COLOR_BLACK);
+
+    tge_draw_text(canvas, 25, 9, " SCORE ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_printf(canvas, 25, 10, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
+               g->world.score);
+    tge_draw_text(canvas, 25, 12, " LEVEL ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_printf(canvas, 25, 13, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
+               g->world.level);
+    tge_draw_text(canvas, 25, 15, " LINES ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+    tge_printf(canvas, 25, 16, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
+               g->world.lines);
 
     const char *controls = " <-> move  W/Up rot  Space drop  ESC ";
     tge_draw_text(canvas, 1, h - 1, controls, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
 
-    if (t->state == STATE_OVER) {
+    if (g->world.state == STATE_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] retry  [ESC] menu ";
         tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_BLACK,
@@ -324,8 +449,13 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 
 static void game_event(TGE_Scene *scene, TGE_Event *ev)
 {
-    Tetris *t = (Tetris *)scene->userdata;
+    TetrisGame *g = (TetrisGame *)scene->userdata;
+    Tetris *t = &g->world;
 
+    if (ev->type == TGE_EVENT_RESIZE) {
+        tetris_resize(t, ev->data.resize.w, ev->data.resize.h);
+        return;
+    }
     if (ev->type == TGE_EVENT_TEXT) {
         uint32_t cp = ev->data.text.codepoint;
         if (cp == 'w' || cp == 'W') {
@@ -369,7 +499,8 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         }
     } else if (ev->type == TGE_EVENT_TIMER &&
                ev->data.timer.id == TMR_GRAVITY) {
-        gravity_step(t);
+        if (t->view.valid)
+            gravity_step(t);
     }
 }
 
@@ -417,33 +548,30 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
         TGE_Quit(g_app);
         return;
     }
-    if (enter)
-        TGE_PushScene(g_app, &g_game);
+    if (enter) {
+        TGE_Scene *game = NULL;
+        TetrisGame *g = (TetrisGame *)tge_scene_create(
+            &game, sizeof(TetrisGame), game_update, game_draw, game_event,
+            NULL);
+        tetris_game_init(g);
+        TGE_PushScene(g_app, game);
+    }
 }
 
 static void init_app(TGE_App *app)
 {
     g_app = app;
-
-    memset(&g_menu, 0, sizeof(g_menu));
-    g_menu.opaque = false;
-    g_menu.draw = title_draw;
-    g_menu.event = title_event;
-
-    memset(&g_game, 0, sizeof(g_game));
-    g_game.opaque = true;
-    g_game.userdata = &g_tetris;
-    g_game.init = game_init;
-    g_game.update = game_update;
-    g_game.draw = game_draw;
-    g_game.event = game_event;
-
-    TGE_PushScene(app, &g_menu);
+    TGE_Scene *menu = NULL;
+    tge_scene_create(&menu, 0, NULL, title_draw, title_event, NULL);
+    menu->opaque = false;
+    TGE_PushScene(app, menu);
 }
 
 int main(void)
 {
-    TGE_App *app = TGE_Create(WIN_W, WIN_H, "TGE Tetris");
+    /* Requested size is the minimum/fallback: the core starts with the real
+     * terminal size when it can query it (TIOCGWINSZ). */
+    TGE_App *app = TGE_Create(MIN_FW + 2, MIN_FH + 2, "TGE Tetris");
     if (!app)
         return 1;
     TGE_Run(app, init_app, NULL, NULL, NULL);

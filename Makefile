@@ -75,9 +75,13 @@ games: $(TARGET) $(EXTRA_TARGET) examples/games/01_snake examples/games/02_pong 
 examples/games/%: examples/games/%.c $(TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge -lm -o $@
 
-# 01_snake (tge-extra utils) and 05_swarm / 06_snake_grid / 07_breakout
-# (tge-extra consumers) link the extra library; the rest link the core only.
+# 01_snake (tge-extra utils) and 03_tetris / 05_swarm / 06_snake_grid /
+# 07_breakout (tge-extra consumers) link the extra library; the rest link
+# the core only.
 examples/games/01_snake: examples/games/01_snake.c $(TARGET) $(EXTRA_TARGET)
+	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
+
+examples/games/03_tetris: examples/games/03_tetris.c $(TARGET) $(EXTRA_TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
 
 examples/games/05_swarm: examples/games/05_swarm.c $(TARGET) $(EXTRA_TARGET)
