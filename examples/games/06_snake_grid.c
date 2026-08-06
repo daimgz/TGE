@@ -47,11 +47,12 @@
 
 /* Minimum playfield interior (cells inside the border): the game asks for at
  * least this before a layout counts as valid. At cell size 2x1 with a HUD row
- * the minimum canvas is 2*(MIN_FW+2) by MIN_FH+3. */
-#define MIN_FW 10
-#define MIN_FH 6
+ * the minimum canvas is 2*(MIN_PLAYFIELD_WIDTH+2) by
+ * MIN_PLAYFIELD_HEIGHT+3. */
+#define MIN_PLAYFIELD_WIDTH 10
+#define MIN_PLAYFIELD_HEIGHT 6
 #define MOVE_INTERVAL 0.10f
-#define DIR_QUEUE 4
+#define DIRECTION_QUEUE_SIZE 4
 
 /* ------------------------------------------------------------------ world */
 
@@ -59,96 +60,110 @@ typedef enum { SNAKE_RUNNING = 0, SNAKE_OVER } SnakeState;
 
 typedef struct {
     TGE_Vec2i *body; /* growable; capacity = playfield area */
-    int cap;
-    int len;
-    TGE_Direction dir;
+    int body_capacity;
+    int body_length;
+    TGE_Direction direction;
     TGE_InputBuffer input; /* queued turns, one applied per step */
     TGE_Vec2i food;
     int score;
     SnakeState state;
     TGE_FixedStep step;
     TGE_View view; /* logical playfield layout; view.area is the interior */
-    int gw, gh;    /* last logical grid size the view was computed for */
+    int last_grid_width;  /* grid width the view was computed for */
+    int last_grid_height; /* grid height the view was computed for */
 } SnakeWorld;
 
-static void world_init(SnakeWorld *s)
+static void world_init(SnakeWorld *world)
 {
-    tge_view_init(&s->view, MIN_FW, MIN_FH);
-    tge_input_buffer_init(&s->input, DIR_QUEUE);
+    tge_view_init(&world->view, MIN_PLAYFIELD_WIDTH, MIN_PLAYFIELD_HEIGHT);
+    tge_input_buffer_init(&world->input, DIRECTION_QUEUE_SIZE);
 }
 
-static bool world_spawn_food(SnakeWorld *s)
+/* The world works in local coordinates (0..w-1, 0..h-1); the renderer is the
+ * only one that maps them to the screen with tge_rect_translate_point().
+ * view.area is that mapping's screen offset, so this returns the world's own
+ * 0-origin bounds. */
+static TGE_Rect world_bounds(const SnakeWorld *world)
 {
-    if (s->view.area.w * s->view.area.h - s->len <= 0)
+    return tge_rect(0, 0, world->view.area.w, world->view.area.h);
+}
+
+static bool world_spawn_food(SnakeWorld *world)
+{
+    if (world->view.area.w * world->view.area.h - world->body_length <= 0)
         return false;
     for (;;) {
-        TGE_Vec2i p = tge_rect_random_point(s->view.area);
+        TGE_Vec2i candidate = tge_rect_random_point(world_bounds(world));
         bool free_spot = true;
-        for (int i = 0; i < s->len; i++) {
-            if (tge_vec2i_eq(s->body[i], p)) {
+        for (int i = 0; i < world->body_length; i++) {
+            if (tge_vec2i_eq(world->body[i], candidate)) {
                 free_spot = false;
                 break;
             }
         }
         if (free_spot) {
-            s->food = p;
+            world->food = candidate;
             return true;
         }
     }
 }
 
-static void world_reset(SnakeWorld *s)
+static void world_reset(SnakeWorld *world)
 {
-    int cx = s->view.area.w / 2;
-    int cy = s->view.area.h / 2;
-    s->len = 3;
-    s->body[0] = tge_vec2i(cx, cy);
-    s->body[1] = tge_vec2i(cx - 1, cy);
-    s->body[2] = tge_vec2i(cx - 2, cy);
-    s->dir = TGE_DIR_RIGHT;
-    s->score = 0;
-    s->state = SNAKE_RUNNING;
-    tge_fixedstep_init(&s->step, MOVE_INTERVAL);
-    tge_input_buffer_clear(&s->input);
-    world_spawn_food(s);
+    int center_x = world->view.area.w / 2;
+    int center_y = world->view.area.h / 2;
+    world->body_length = 3;
+    world->body[0] = tge_vec2i(center_x, center_y);
+    world->body[1] = tge_vec2i(center_x - 1, center_y);
+    world->body[2] = tge_vec2i(center_x - 2, center_y);
+    world->direction = TGE_DIR_RIGHT;
+    world->score = 0;
+    world->state = SNAKE_RUNNING;
+    tge_fixedstep_init(&world->step, MOVE_INTERVAL);
+    tge_input_buffer_clear(&world->input);
+    world_spawn_food(world);
 }
 
-/* Recompute the playfield layout for a new logical grid size (gw x gh grid
- * cells, the renderer decides how a canvas maps to them). The view decides
- * what the layout means: the first valid one spawns a fresh snake, later
- * resizes keep the current one (clamped into the new bounds, food respawned
- * if it no longer fits), and a too-small size stays inactive until the
- * terminal grows. */
-static void world_layout(SnakeWorld *s, int gw, int gh)
+/* Recompute the playfield layout for a new logical grid size (grid_width x
+ * grid_height grid cells, the renderer decides how a canvas maps to them).
+ * The view decides what the layout means: the first valid one spawns a fresh
+ * snake, later resizes keep the current one (clamped into the new bounds,
+ * food respawned if it no longer fits), and a too-small size stays inactive
+ * until the terminal grows. */
+static void world_layout(SnakeWorld *world, int grid_width, int grid_height)
 {
-    s->gw = gw;
-    s->gh = gh;
-    TGE_ViewUpdate upd = tge_view_update(&s->view, gw, gh);
+    world->last_grid_width = grid_width;
+    world->last_grid_height = grid_height;
+    TGE_ViewUpdate view_update = tge_view_update(&world->view, grid_width,
+                                                 grid_height);
 
-    int cap = s->view.area.w * s->view.area.h;
-    if (cap < 1)
-        cap = 1;
-    if (cap != s->cap) {
-        TGE_Vec2i *nb =
-            (TGE_Vec2i *)realloc(s->body, (size_t)cap * sizeof(TGE_Vec2i));
-        if (nb) {
-            s->body = nb;
-            s->cap = cap;
+    int capacity = world->view.area.w * world->view.area.h;
+    if (capacity < 1)
+        capacity = 1;
+    if (capacity != world->body_capacity) {
+        TGE_Vec2i *new_body =
+            (TGE_Vec2i *)realloc(world->body,
+                                 (size_t)capacity * sizeof(TGE_Vec2i));
+        if (new_body) {
+            world->body = new_body;
+            world->body_capacity = capacity;
         }
     }
-    if (s->len > s->cap)
-        s->len = s->cap;
+    if (world->body_length > world->body_capacity)
+        world->body_length = world->body_capacity;
 
-    switch (upd) {
+    switch (view_update) {
     case TGE_VIEW_FIRST_VALID:
-        world_reset(s);
+        world_reset(world);
         break;
     case TGE_VIEW_RESIZED:
-        for (int i = 0; i < s->len; i++)
-            s->body[i] = tge_vec2i_clamp_rect(s->body[i], s->view.area);
-        if (s->food.x >= s->view.area.w || s->food.y >= s->view.area.h) {
-            if (!world_spawn_food(s))
-                s->state = SNAKE_OVER;
+        for (int i = 0; i < world->body_length; i++)
+            world->body[i] =
+                tge_vec2i_clamp_rect(world->body[i], world_bounds(world));
+        if (world->food.x >= world->view.area.w ||
+            world->food.y >= world->view.area.h) {
+            if (!world_spawn_food(world))
+                world->state = SNAKE_OVER;
         }
         break;
     case TGE_VIEW_INVALID:
@@ -157,49 +172,51 @@ static void world_layout(SnakeWorld *s, int gw, int gh)
     }
 }
 
-static bool world_step(SnakeWorld *s)
+static bool world_step(SnakeWorld *world)
 {
-    TGE_Direction d;
-    while (tge_input_buffer_pop(&s->input, &d)) {
-        if (d == tge_direction_opposite(s->dir) || d == s->dir)
+    TGE_Direction direction;
+    while (tge_input_buffer_pop(&world->input, &direction)) {
+        if (direction == tge_direction_opposite(world->direction) ||
+            direction == world->direction)
             continue;
-        s->dir = d;
+        world->direction = direction;
         break;
     }
 
-    TGE_Vec2i nh = tge_vec2i_add(s->body[0], tge_direction_vec(s->dir));
+    TGE_Vec2i next_head =
+        tge_vec2i_add(world->body[0], tge_direction_vec(world->direction));
 
-    if (nh.x < 0 || nh.x >= s->view.area.w || nh.y < 0 ||
-        nh.y >= s->view.area.h)
+    if (next_head.x < 0 || next_head.x >= world->view.area.w ||
+        next_head.y < 0 || next_head.y >= world->view.area.h)
         return false;
 
-    bool ate = tge_vec2i_eq(nh, s->food);
-    int check_to = s->len - (ate ? 0 : 1);
-    for (int i = 0; i < check_to; i++) {
-        if (tge_vec2i_eq(nh, s->body[i]))
+    bool ate = tge_vec2i_eq(next_head, world->food);
+    int cells_to_check = world->body_length - (ate ? 0 : 1);
+    for (int i = 0; i < cells_to_check; i++) {
+        if (tge_vec2i_eq(next_head, world->body[i]))
             return false;
     }
 
-    for (int i = s->len; i > 0; i--)
-        s->body[i] = s->body[i - 1];
-    s->body[0] = nh;
+    for (int i = world->body_length; i > 0; i--)
+        world->body[i] = world->body[i - 1];
+    world->body[0] = next_head;
 
     if (ate) {
-        s->len++;
-        s->score += 10;
-        return world_spawn_food(s);
+        world->body_length++;
+        world->score += 10;
+        return world_spawn_food(world);
     }
     return true;
 }
 
-static void world_update(SnakeWorld *s, float dt)
+static void world_update(SnakeWorld *world, float delta_time)
 {
-    if (s->state != SNAKE_RUNNING || !s->view.valid)
+    if (world->state != SNAKE_RUNNING || !world->view.valid)
         return;
-    tge_fixedstep_update(&s->step, dt);
-    while (tge_fixedstep_next(&s->step)) {
-        if (!world_step(s)) {
-            s->state = SNAKE_OVER;
+    tge_fixedstep_update(&world->step, delta_time);
+    while (tge_fixedstep_next(&world->step)) {
+        if (!world_step(world)) {
+            world->state = SNAKE_OVER;
             break;
         }
     }
@@ -212,71 +229,81 @@ typedef struct {
     TGE_GridView view;
 } SnakeRenderer;
 
-static const TGE_Sprite SPR_EMPTY = { 2, 1, "  " };
-static const TGE_Sprite SPR_BODY = { 2, 1, "\xE2\x96\x93\xE2\x96\x93" };
-static const TGE_Sprite SPR_WALL = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite SPR_HEAD = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite SPR_FOOD = { 2, 1, "()" };
-static const TGE_Sprite SPR_SELECT = { 2, 1, "::" };
+static const TGE_Sprite SPRITE_EMPTY = TGE_SPRITE(2, 1, "  ", NULL);
+static const TGE_Sprite SPRITE_BODY =
+    TGE_SPRITE(2, 1, "\xE2\x96\x93\xE2\x96\x93", "..");
+static const TGE_Sprite SPRITE_WALL =
+    TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88", "##");
+static const TGE_Sprite SPRITE_HEAD =
+    TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88", "##");
+static const TGE_Sprite SPRITE_FOOD =
+    TGE_SPRITE(2, 1, "\xE2\x96\x93\xE2\x96\x93", "@@");
+static const TGE_Sprite SPRITE_SELECT = TGE_SPRITE(2, 1, "::", NULL);
 
 static const TGE_GridTheme SNAKE_THEME = {
-    .empty = &SPR_EMPTY,
-    .default_sprite = &SPR_BODY,
-    .border = &SPR_WALL,
-    .selection = &SPR_SELECT,
+    .empty = &SPRITE_EMPTY,
+    .default_sprite = &SPRITE_BODY,
+    .border = &SPRITE_WALL,
+    .selection = &SPRITE_SELECT,
 };
 
 /* Sync the renderer with the canvas currently being drawn. The app swaps its
  * double buffers every frame, so the view is re-attached to the current
  * canvas on every draw; the theme, cell size and origin are configured once
  * at creation and re-applied here. */
-static void renderer_bind(SnakeRenderer *r, TGE_Canvas *canvas)
+static void renderer_bind(SnakeRenderer *renderer, TGE_Canvas *canvas)
 {
-    tge_grid_view_init(&r->view, canvas, r->theme, TGE_GRID_SCALE_2X1);
-    tge_grid_set_origin(&r->view.grid, 0, 1);
+    tge_grid_view_init(&renderer->view, canvas, renderer->theme,
+                       TGE_GRID_SCALE_2X1);
+    tge_grid_set_origin(&renderer->view.grid, 0, 1);
 }
 
-static void renderer_draw(SnakeRenderer *r, TGE_Canvas *canvas,
-                          const SnakeWorld *s)
+static void renderer_draw(SnakeRenderer *renderer, TGE_Canvas *canvas,
+                          const SnakeWorld *world)
 {
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    renderer_bind(r, canvas);
+    int canvas_width = tge_canvas_width(canvas);
+    int canvas_height = tge_canvas_height(canvas);
+    renderer_bind(renderer, canvas);
 
     tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
 
     tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK, " SCORE: %d ",
-               s->score);
+               world->score);
 
-    tge_grid_view_draw_border(&r->view, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_grid_view_draw_border(&renderer->view, TGE_COLOR_CYAN,
+                              TGE_COLOR_BLACK);
 
-    if (!s->view.valid) {
-        tge_draw_centered_text(canvas, h / 2, " too small ",
+    if (!world->view.valid) {
+        tge_draw_centered_text(canvas, canvas_height / 2, " too small ",
                                TGE_COLOR_RED, TGE_COLOR_BLACK);
         return;
     }
 
-    for (int i = 1; i < s->len; i++) {
-        TGE_Vec2i gp = tge_rect_translate_point(s->view.area, s->body[i]);
-        tge_grid_view_set_cell(&r->view, gp.x, gp.y, TGE_COLOR_GREEN,
-                               TGE_COLOR_BLACK);
+    for (int i = 1; i < world->body_length; i++) {
+        TGE_Vec2i grid_point =
+            tge_rect_translate_point(world->view.area, world->body[i]);
+        tge_grid_view_set_cell(&renderer->view, grid_point.x, grid_point.y,
+                               TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     }
-    TGE_Vec2i hp = tge_rect_translate_point(s->view.area, s->body[0]);
-    tge_grid_view_put(&r->view, hp.x, hp.y, &SPR_HEAD, TGE_COLOR_GREEN,
-                      TGE_COLOR_BLACK);
-    TGE_Vec2i fp = tge_rect_translate_point(s->view.area, s->food);
-    tge_grid_view_put(&r->view, fp.x, fp.y, &SPR_FOOD, TGE_COLOR_RED,
-                      TGE_COLOR_BLACK);
+    TGE_Vec2i head_point =
+        tge_rect_translate_point(world->view.area, world->body[0]);
+    tge_grid_view_put(&renderer->view, head_point.x, head_point.y,
+                      &SPRITE_HEAD, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_Vec2i food_point =
+        tge_rect_translate_point(world->view.area, world->food);
+    tge_grid_view_put_attr(&renderer->view, food_point.x, food_point.y,
+                           &SPRITE_FOOD, TGE_COLOR_RED, TGE_COLOR_BLACK,
+                           TGE_CELL_ATTR_BOLD);
 
-    if (s->state == SNAKE_OVER) {
-        const char *msg = " GAME OVER ";
+    if (world->state == SNAKE_OVER) {
+        const char *message = " GAME OVER ";
         const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
-        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, h / 2 - 1, msg, TGE_COLOR_RED,
-                               TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+        tge_fill_rect(canvas, 1, canvas_height / 2 - 1, canvas_width - 2, 3,
+                      ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, canvas_height / 2 - 1, message,
+                               TGE_COLOR_RED, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, canvas_height / 2 + 1, again,
+                               TGE_COLOR_WHITE, TGE_COLOR_BLACK);
     }
 }
 
@@ -290,114 +317,111 @@ typedef struct {
 } SnakeGame;
 
 static TGE_App *g_app = NULL;
-static TGE_Scene *g_title = NULL;
-static TGE_Scene *g_game = NULL;
 
-static void game_update(TGE_Scene *scene, float dt)
+static void game_update(TGE_Scene *scene, float delta_time)
 {
-    SnakeGame *g = (SnakeGame *)scene->userdata;
-    world_update(&g->world, dt);
+    SnakeGame *game = (SnakeGame *)scene->userdata;
+    world_update(&game->world, delta_time);
 }
 
 static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
-    SnakeGame *g = (SnakeGame *)scene->userdata;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    int gw, gh;
-    tge_grid_view_size_for(&g->renderer.view, w, h, &gw, &gh);
-    if (g->world.gw != gw || g->world.gh != gh)
-        world_layout(&g->world, gw, gh);
-    renderer_draw(&g->renderer, canvas, &g->world);
+    SnakeGame *game = (SnakeGame *)scene->userdata;
+    int canvas_width = tge_canvas_width(canvas);
+    int canvas_height = tge_canvas_height(canvas);
+    int grid_width, grid_height;
+    tge_grid_view_size_for(&game->renderer.view, canvas_width, canvas_height,
+                           &grid_width, &grid_height);
+    if (game->world.last_grid_width != grid_width ||
+        game->world.last_grid_height != grid_height)
+        world_layout(&game->world, grid_width, grid_height);
+    renderer_draw(&game->renderer, canvas, &game->world);
 }
 
-static void game_event(TGE_Scene *scene, TGE_Event *ev)
+static void game_event(TGE_Scene *scene, TGE_Event *event)
 {
-    SnakeGame *g = (SnakeGame *)scene->userdata;
+    SnakeGame *game = (SnakeGame *)scene->userdata;
 
-    if (ev->type == TGE_EVENT_RESIZE) {
-        int gw, gh;
-        tge_grid_view_size_for(&g->renderer.view, ev->data.resize.w,
-                               ev->data.resize.h, &gw, &gh);
-        world_layout(&g->world, gw, gh);
+    if (event->type == TGE_EVENT_RESIZE) {
+        int grid_width, grid_height;
+        tge_grid_view_size_for(&game->renderer.view, event->data.resize.w,
+                               event->data.resize.h, &grid_width,
+                               &grid_height);
+        world_layout(&game->world, grid_width, grid_height);
         return;
     }
-    TGE_Direction d = tge_input_direction(ev);
-    if (d != TGE_DIR_NONE) {
-        tge_input_buffer_push(&g->world.input, d);
+    TGE_Direction direction = tge_input_direction(event);
+    if (direction != TGE_DIR_NONE) {
+        tge_input_buffer_push(&game->world.input, direction);
         return;
     }
-    if (tge_input_quit(ev)) {
-        if (g->world.state == SNAKE_OVER)
+    if (tge_input_quit(event)) {
+        if (game->world.state == SNAKE_OVER)
             TGE_Quit(g_app);
         return;
     }
-    if (tge_input_confirm(ev)) {
-        if (g->world.state == SNAKE_OVER && g->world.view.valid)
-            world_reset(&g->world);
+    if (tge_input_confirm(event)) {
+        if (game->world.state == SNAKE_OVER && game->world.view.valid)
+            world_reset(&game->world);
         return;
     }
-    if (tge_input_cancel(ev)) {
-        g_game = NULL;
+    if (tge_input_cancel(event)) {
         TGE_PopScene(g_app);
     }
 }
 
 static void game_destroy(TGE_Scene *scene)
 {
-    SnakeGame *g = (SnakeGame *)scene->userdata;
-    free(g->world.body);
+    SnakeGame *game = (SnakeGame *)scene->userdata;
+    free(game->world.body);
 }
 
 static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
     (void)scene;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
+    int canvas_width = tge_canvas_width(canvas);
+    int canvas_height = tge_canvas_height(canvas);
     const char *title = " SNAKE 2X1 ";
     const char *subtitle = " square pixels, grid adapts to terminal ";
     const char *controls = " Arrows or WASD to move ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 - 4, title, TGE_COLOR_GREEN,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 - 2, subtitle, TGE_COLOR_CYAN,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 1, controls, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 3, start, TGE_COLOR_YELLOW,
-                           TGE_COLOR_BLACK);
+    tge_draw_frame(canvas, 0, 0, canvas_width, canvas_height      , TGE_COLOR_CYAN  , TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, canvas_height / 2 - 4, title   , TGE_COLOR_GREEN , TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, canvas_height / 2 - 2, subtitle, TGE_COLOR_CYAN  , TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, canvas_height / 2 + 1, controls, TGE_COLOR_WHITE , TGE_COLOR_BLACK);
+    tge_draw_centered_text(canvas, canvas_height / 2 + 3, start   , TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
 
-    TGE_GridView gv;
-    tge_grid_view_init(&gv, canvas, &SNAKE_THEME, TGE_GRID_SCALE_2X1);
-    tge_grid_set_origin(&gv.grid, 0, 15);
-    tge_grid_view_put(&gv, 6, 0, &SPR_HEAD, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_GridView grid_view;
+    tge_grid_view_init(&grid_view, canvas, &SNAKE_THEME, TGE_GRID_SCALE_2X1);
+    tge_grid_set_origin(&grid_view.grid, 0, 15);
+    tge_grid_view_put(&grid_view, 6, 0, &SPRITE_HEAD, TGE_COLOR_GREEN,
+                      TGE_COLOR_BLACK);
     for (int i = 0; i < 3; i++)
-        tge_grid_view_set_cell(&gv, 7 + i, 0, TGE_COLOR_GREEN,
+        tge_grid_view_set_cell(&grid_view, 7 + i, 0, TGE_COLOR_GREEN,
                                TGE_COLOR_BLACK);
-    tge_grid_view_put(&gv, 12, 0, &SPR_FOOD, TGE_COLOR_RED, TGE_COLOR_BLACK);
+    tge_grid_view_put(&grid_view, 12, 0, &SPRITE_FOOD, TGE_COLOR_RED,
+                      TGE_COLOR_BLACK);
 }
 
-static void title_event(TGE_Scene *scene, TGE_Event *ev)
+static void title_event(TGE_Scene *scene, TGE_Event *event)
 {
     (void)scene;
-    if (tge_input_cancel(ev) || tge_input_quit(ev)) {
+    if (tge_input_cancel(event) || tge_input_quit(event)) {
         TGE_Quit(g_app);
         return;
     }
-    if (tge_input_confirm(ev)) {
-        TGE_Scene *game = NULL;
-        SnakeGame *g = (SnakeGame *)tge_scene_create(
-            &game, sizeof(SnakeGame), game_update, game_draw, game_event,
-            game_destroy);
-        g->renderer.theme = &SNAKE_THEME;
-        tge_grid_view_init(&g->renderer.view, NULL, &SNAKE_THEME,
+    if (tge_input_confirm(event)) {
+        TGE_Scene *game_scene = NULL;
+        SnakeGame *game = (SnakeGame *)tge_scene_create(
+            &game_scene, sizeof(SnakeGame), game_update, game_draw,
+            game_event, game_destroy);
+        game->renderer.theme = &SNAKE_THEME;
+        tge_grid_view_init(&game->renderer.view, NULL, &SNAKE_THEME,
                            TGE_GRID_SCALE_2X1);
-        tge_grid_set_origin(&g->renderer.view.grid, 0, 1);
-        world_init(&g->world);
-        g_game = game;
-        TGE_PushScene(g_app, game);
+        tge_grid_set_origin(&game->renderer.view.grid, 0, 1);
+        world_init(&game->world);
+        TGE_PushScene(g_app, game_scene);
     }
 }
 
@@ -407,7 +431,6 @@ static void init_app(TGE_App *app)
     TGE_Scene *title = NULL;
     tge_scene_create(&title, 0, NULL, title_draw, title_event, NULL);
     title->opaque = false;
-    g_title = title;
     TGE_PushScene(app, title);
 }
 
@@ -415,13 +438,13 @@ int main(void)
 {
     /* Requested size is the minimum/fallback: the core starts with the real
      * terminal size when it can query it (TIOCGWINSZ). At 2x1 cells the grid
-     * needs 2*(MIN_FW+2) columns and MIN_FH+3 rows. */
-    TGE_App *app = TGE_Create(2 * (MIN_FW + 2), MIN_FH + 3, "TGE Snake 2x1");
+     * needs 2*(MIN_PLAYFIELD_WIDTH+2) columns and
+     * MIN_PLAYFIELD_HEIGHT+3 rows. */
+    TGE_App *app = TGE_Create(2 * (MIN_PLAYFIELD_WIDTH + 2),
+                              MIN_PLAYFIELD_HEIGHT + 3, "TGE Snake 2x1");
     if (!app)
         return 1;
     TGE_Run(app, init_app, NULL, NULL, NULL);
-    tge_scene_destroy(g_game);
-    tge_scene_destroy(g_title);
     TGE_Destroy(app);
     return 0;
 }
