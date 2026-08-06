@@ -40,6 +40,7 @@ typedef struct {
     float wave_timer;
     float hit_flash;
     SiState state;
+    bool paused;
 } Invaders;
 
 static TGE_App *g_app = NULL;
@@ -83,6 +84,7 @@ static void reset(Invaders *t)
     t->score = 0;
     t->level = 1;
     t->lives = 3;
+    t->paused = false;
     t->px = WIN_W / 2;
     t->hit_flash = 0.0f;
     t->shot_acc = 0.0f;
@@ -252,6 +254,8 @@ static void si_init(TGE_Scene *scene)
 static void si_update(TGE_Scene *scene, float dt)
 {
     Invaders *t = (Invaders *)scene->userdata;
+    if (t->paused)
+        return;
 
     if (t->hit_flash > 0.0f) {
         t->hit_flash -= dt;
@@ -347,19 +351,25 @@ static void si_draw(TGE_Scene *scene, TGE_Canvas *canvas)
             tge_set_cell(canvas, t->eb_x[i], t->eb_y[i], '|', TGE_COLOR_RED,
                          TGE_COLOR_BLACK);
 
-    if (t->state == SI_WAVE) {
-        char buf[24];
-        snprintf(buf, sizeof(buf), " WAVE %d ", t->level + 1);
-        tge_draw_centered_text(canvas, h / 2, buf, TGE_COLOR_YELLOW,
-                               TGE_COLOR_BLACK);
-    }
-
     if (t->state == SI_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] retry  [ESC] menu  [Q] quit ";
         tge_draw_centered_text(canvas, h / 2 - 2, msg, TGE_COLOR_RED,
                                TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, h / 2, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
+    } else if (t->paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
+                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
+    } else if (t->state == SI_WAVE) {
+        char buf[24];
+        snprintf(buf, sizeof(buf), " WAVE %d ", t->level + 1);
+        tge_draw_centered_text(canvas, h / 2, buf, TGE_COLOR_YELLOW,
                                TGE_COLOR_BLACK);
     }
 }
@@ -368,6 +378,16 @@ static void si_event(TGE_Scene *scene, TGE_Event *ev)
 {
     Invaders *t = (Invaders *)scene->userdata;
 
+    if (ev->type == TGE_EVENT_TEXT &&
+        (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
+        if (t->state != SI_OVER)
+            t->paused = !t->paused;
+        return;
+    }
+    if (t->paused &&
+        !(ev->type == TGE_EVENT_KEYDOWN &&
+          ev->data.key.keycode == TGE_KEY_ESC))
+        return;
     if (ev->type == TGE_EVENT_TEXT) {
         switch (ev->data.text.codepoint) {
         case 'a': case 'A':
@@ -434,7 +454,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
     const char *title = " SPACE INVADERS ";
-    const char *controls = " Arrows/WASD move  Space/Up shoot ";
+    const char *controls = " Arrows/WASD move  Space/Up shoot  P: pause ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);

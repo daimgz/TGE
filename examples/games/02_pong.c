@@ -32,6 +32,7 @@ typedef struct {
     PongState state;
     int countdown;
     int serve_dir;
+    bool paused;
     int cd_timer;
     float go_flash;
     Held p1, p2;
@@ -62,6 +63,7 @@ static void restart_match(Pong *g)
 {
     g->score1 = 0;
     g->score2 = 0;
+    g->paused = false;
     g->p1y = (float)(WIN_H - PADDLE_H) / 2.0f;
     g->p2y = (float)(WIN_H - PADDLE_H) / 2.0f;
     g->speed = BALL_SPEED;
@@ -98,6 +100,8 @@ static void game_init(TGE_Scene *scene)
 static void game_update(TGE_Scene *scene, float dt)
 {
     Pong *g = (Pong *)scene->userdata;
+    if (g->paused)
+        return;
 
     g->p1.t += dt;
     g->p2.t += dt;
@@ -237,12 +241,30 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
                                TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
                                TGE_COLOR_BLACK);
+    } else if (g->paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
+                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
     }
 }
 
 static void game_event(TGE_Scene *scene, TGE_Event *ev)
 {
     Pong *g = (Pong *)scene->userdata;
+    if (ev->type == TGE_EVENT_TEXT &&
+        (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
+        if (g->state != STATE_OVER)
+            g->paused = !g->paused;
+        return;
+    }
+    if (g->paused &&
+        !(ev->type == TGE_EVENT_KEYDOWN &&
+          ev->data.key.keycode == TGE_KEY_ESC))
+        return;
     if (ev->type == TGE_EVENT_TEXT) {
         switch (ev->data.text.codepoint) {
         case 'w':
@@ -280,7 +302,7 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         }
     } else if (ev->type == TGE_EVENT_TIMER &&
                ev->data.timer.id == TMR_COUNTDOWN) {
-        if (g->state == STATE_COUNTDOWN && g->countdown > 0) {
+        if (g->state == STATE_COUNTDOWN && !g->paused && g->countdown > 0) {
             g->countdown--;
             if (g->countdown == 0) {
                 if (g->cd_timer >= 0)
@@ -302,7 +324,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
     const char *title = " PONG ";
-    const char *controls = " P1: W/S    P2: Up/Down ";
+    const char *controls = " P1: W/S  P2: Up/Down  P: pause ";
     const char *start = " [ENTER] to start  [Q] to quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);

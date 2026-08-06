@@ -84,6 +84,7 @@ typedef struct {
     int lines;
     int gravity_timer;
     TetrisState state;
+    bool paused;
     TGE_Timer rot; /* rotation cooldown (classic debounce) */
     TGE_View view;
     int last_w, last_h; /* last surface the view was computed for (-1 = none) */
@@ -274,6 +275,7 @@ static void reset(Tetris *t)
     t->lines = 0;
     t->state = STATE_PLAYING;
     t->next = rand() % 7;
+    t->paused = false;
     tge_timer_init(&t->rot, ROTATE_DEBOUNCE);
     /* Preload the cooldown so the very first rotation after a reset is
      * immediate (the old `last_rotate = -ROTATE_DEBOUNCE` did the same). */
@@ -387,6 +389,8 @@ static void gravity_step(Tetris *t)
 static void game_update(TGE_Scene *scene, float dt)
 {
     TetrisGame *g = (TetrisGame *)scene->userdata;
+    if (g->world.paused)
+        return;
     tge_timer_update(&g->world.rot, dt);
 }
 
@@ -432,7 +436,7 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     tge_printf(canvas, 25, 16, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
                g->world.lines);
 
-    const char *controls = " <-> move  W/Up rot  Space drop  ESC ";
+    const char *controls = " <-> move  W/Up rot  Space drop  P pause  ESC ";
     tge_draw_text(canvas, 1, h - 1, controls, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
 
     if (g->world.state == STATE_OVER) {
@@ -441,6 +445,14 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
         tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_BLACK,
                       TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, msg,
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
+                               TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    } else if (g->world.paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_BLACK,
+                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, " PAUSED ",
                                TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
                                TGE_COLOR_WHITE, TGE_COLOR_BLACK);
@@ -456,6 +468,16 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         tetris_resize(t, ev->data.resize.w, ev->data.resize.h);
         return;
     }
+    if (ev->type == TGE_EVENT_TEXT &&
+        (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
+        if (t->state != STATE_OVER)
+            t->paused = !t->paused;
+        return;
+    }
+    if (t->paused &&
+        !(ev->type == TGE_EVENT_KEYDOWN &&
+          ev->data.key.keycode == TGE_KEY_ESC))
+        return;
     if (ev->type == TGE_EVENT_TEXT) {
         uint32_t cp = ev->data.text.codepoint;
         if (cp == 'w' || cp == 'W') {

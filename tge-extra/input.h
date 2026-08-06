@@ -24,6 +24,8 @@ bool tge_input_confirm(const TGE_Event *ev);
 bool tge_input_cancel(const TGE_Event *ev);
 /* True for Q/q (TEXT). */
 bool tge_input_quit(const TGE_Event *ev);
+/* True for P/p (TEXT). */
+bool tge_input_pause(const TGE_Event *ev);
 
 #ifdef __cplusplus
 }

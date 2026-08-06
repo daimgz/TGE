@@ -82,6 +82,9 @@ TGE_TEST(actions)
     TGE_Event Q = text('Q');
     TGE_Event q_kd = keydown('q');
     TGE_Event x = text('x');
+    TGE_Event p = text('p');
+    TGE_Event P = text('P');
+    TGE_Event p_kd = keydown('p');
     TGE_ASSERT(tge_input_confirm(&enter_kd), "enter keydown");
     TGE_ASSERT(tge_input_confirm(&enter_tx), "enter text");
     TGE_ASSERT(!tge_input_confirm(&a), "letter not confirm");
@@ -91,8 +94,12 @@ TGE_TEST(actions)
     TGE_ASSERT(tge_input_quit(&Q), "Q quit");
     TGE_ASSERT(!tge_input_quit(&q_kd), "keydown q not quit");
     TGE_ASSERT(!tge_input_quit(&x), "other letter not quit");
+    TGE_ASSERT(tge_input_pause(&p), "p pause");
+    TGE_ASSERT(tge_input_pause(&P), "P pause");
+    TGE_ASSERT(!tge_input_pause(&p_kd), "keydown p not pause");
+    TGE_ASSERT(!tge_input_pause(&x), "other letter not pause");
     TGE_ASSERT(!tge_input_confirm(NULL) && !tge_input_cancel(NULL) &&
-               !tge_input_quit(NULL), "NULL safe");
+               !tge_input_quit(NULL) && !tge_input_pause(NULL), "NULL safe");
 }
 
 int main(void)

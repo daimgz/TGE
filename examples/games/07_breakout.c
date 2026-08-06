@@ -87,6 +87,7 @@ typedef struct {
     int score, lives, level;
     int serve_dir;      /* launch direction after a serve */
     BreakoutState state;
+    bool paused;
     Held held;
 } BreakoutWorld;
 
@@ -266,7 +267,7 @@ static void world_ball_step(BreakoutWorld *w, float dt)
 
 static void world_update(BreakoutWorld *w, float dt)
 {
-    if (!w->view.valid || w->state == BREAKOUT_OVER)
+    if (!w->view.valid || w->paused || w->state == BREAKOUT_OVER)
         return;
 
     w->held.t += dt;
@@ -298,6 +299,7 @@ static void world_reset(BreakoutWorld *w)
     w->score = 0;
     w->lives = 3;
     w->level = 1;
+    w->paused = false;
     w->px = (float)w->view.area.w / 2.0f;
     w->held.left = 0;
     w->held.right = 0;
@@ -470,10 +472,7 @@ static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
                           TGE_COLOR_BLACK);
     }
 
-    if (w->state == BREAKOUT_SERVE) {
-        tge_draw_centered_text(canvas, ch / 2 + 2, " [SPACE]/[ENTER] serve ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    } else if (w->state == BREAKOUT_OVER) {
+    if (w->state == BREAKOUT_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
         tge_fill_rect(canvas, 1, ch / 2 - 1, cw - 2, 3, ' ', TGE_COLOR_BLACK,
@@ -482,6 +481,17 @@ static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
                                TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, ch / 2 + 1, again, TGE_COLOR_WHITE,
                                TGE_COLOR_BLACK);
+    } else if (w->paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 1, ch / 2 - 1, cw - 2, 3, ' ', TGE_COLOR_BLACK,
+                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, ch / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, ch / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
+    } else if (w->state == BREAKOUT_SERVE) {
+        tge_draw_centered_text(canvas, ch / 2 + 2, " [SPACE]/[ENTER] serve ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
     }
 }
 
@@ -525,6 +535,13 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         world_layout(&g->world, gw, gh);
         return;
     }
+    if (tge_input_pause(ev)) {
+        if (g->world.state != BREAKOUT_OVER)
+            g->world.paused = !g->world.paused;
+        return;
+    }
+    if (g->world.paused && !tge_input_cancel(ev))
+        return;
     TGE_Direction d = tge_input_direction(ev);
     if (d == TGE_DIR_LEFT) {
         g->world.held.left = 1;
@@ -570,7 +587,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int h = tge_canvas_height(canvas);
     const char *title = " BREAKOUT ";
     const char *subtitle = " continuous physics on a square-pixel grid ";
-    const char *controls = " Left/Right or A/D to move  [SPACE]/[ENTER] serve ";
+    const char *controls = " Left/Right or A/D move  [SPACE]/[ENTER] serve  P: pause ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);

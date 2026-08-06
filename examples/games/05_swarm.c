@@ -67,6 +67,7 @@ typedef struct {
     TGE_EntityId to_kill[MAX_ENTITIES];
     int to_kill_count;
     SwarmState state;
+    bool paused;
 } Game;
 
 typedef struct {
@@ -396,6 +397,8 @@ static void draw_body(TGE_EntityPool *pool, TGE_EntityId id, void *userdata,
 static void game_update(TGE_Scene *scene, float dt)
 {
     Game *g = (Game *)scene->userdata;
+    if (g->paused)
+        return;
 
     if (g->hit_flash > 0.0f) {
         g->hit_flash -= dt;
@@ -457,19 +460,25 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     tge_printf(canvas, 37, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, " LEFT %02d ",
                g->live);
 
-    if (g->state == S_WAVE) {
-        char buf[24];
-        snprintf(buf, sizeof(buf), " WAVE %d ", g->level + 1);
-        tge_draw_centered_text(canvas, h / 2, buf, TGE_COLOR_YELLOW,
-                               TGE_COLOR_BLACK);
-    }
-
     if (g->state == S_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] retry  [ESC] menu  [Q] quit ";
         tge_draw_centered_text(canvas, h / 2 - 2, msg, TGE_COLOR_RED,
                                TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, h / 2, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
+    } else if (g->paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
+                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
+    } else if (g->state == S_WAVE) {
+        char buf[24];
+        snprintf(buf, sizeof(buf), " WAVE %d ", g->level + 1);
+        tge_draw_centered_text(canvas, h / 2, buf, TGE_COLOR_YELLOW,
                                TGE_COLOR_BLACK);
     }
 }
@@ -478,6 +487,16 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
 {
     Game *g = (Game *)scene->userdata;
 
+    if (ev->type == TGE_EVENT_TEXT &&
+        (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
+        if (g->state != S_OVER)
+            g->paused = !g->paused;
+        return;
+    }
+    if (g->paused &&
+        !(ev->type == TGE_EVENT_KEYDOWN &&
+          ev->data.key.keycode == TGE_KEY_ESC))
+        return;
     if (ev->type == TGE_EVENT_KEYDOWN) {
         switch (ev->data.key.keycode) {
         case TGE_KEY_LEFT:
@@ -558,7 +577,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
     const char *title = " SWARM ";
-    const char *controls = " Arrows move   Space shoot ";
+    const char *controls = " Arrows move  Space shoot  P: pause ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);

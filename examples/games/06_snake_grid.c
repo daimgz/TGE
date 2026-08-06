@@ -67,6 +67,7 @@ typedef struct {
     TGE_Vec2i food;
     int score;
     SnakeState state;
+    bool paused;
     TGE_FixedStep step;
     TGE_View view; /* logical playfield layout; view.area is the interior */
     int last_grid_width;  /* grid width the view was computed for */
@@ -119,6 +120,7 @@ static void world_reset(SnakeWorld *world)
     world->direction = TGE_DIR_RIGHT;
     world->score = 0;
     world->state = SNAKE_RUNNING;
+    world->paused = false;
     tge_fixedstep_init(&world->step, MOVE_INTERVAL);
     tge_input_buffer_clear(&world->input);
     world_spawn_food(world);
@@ -211,7 +213,7 @@ static bool world_step(SnakeWorld *world)
 
 static void world_update(SnakeWorld *world, float delta_time)
 {
-    if (world->state != SNAKE_RUNNING || !world->view.valid)
+    if (world->state != SNAKE_RUNNING || world->paused || !world->view.valid)
         return;
     tge_fixedstep_update(&world->step, delta_time);
     while (tge_fixedstep_next(&world->step)) {
@@ -304,6 +306,14 @@ static void renderer_draw(SnakeRenderer *renderer, TGE_Canvas *canvas,
                                TGE_COLOR_RED, TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, canvas_height / 2 + 1, again,
                                TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    } else if (world->paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 1, canvas_height / 2 - 1, canvas_width - 2, 3,
+                      ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, canvas_height / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, canvas_height / 2 + 1, again,
+                               TGE_COLOR_WHITE, TGE_COLOR_BLACK);
     }
 }
 
@@ -350,6 +360,13 @@ static void game_event(TGE_Scene *scene, TGE_Event *event)
         world_layout(&game->world, grid_width, grid_height);
         return;
     }
+    if (tge_input_pause(event)) {
+        if (game->world.state != SNAKE_OVER)
+            game->world.paused = !game->world.paused;
+        return;
+    }
+    if (game->world.paused && !tge_input_cancel(event))
+        return;
     TGE_Direction direction = tge_input_direction(event);
     if (direction != TGE_DIR_NONE) {
         tge_input_buffer_push(&game->world.input, direction);
@@ -383,7 +400,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int canvas_height = tge_canvas_height(canvas);
     const char *title = " SNAKE 2X1 ";
     const char *subtitle = " square pixels, grid adapts to terminal ";
-    const char *controls = " Arrows or WASD to move ";
+    const char *controls = " Arrows/WASD move  [P] pause ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, canvas_width, canvas_height      , TGE_COLOR_CYAN  , TGE_COLOR_BLACK);

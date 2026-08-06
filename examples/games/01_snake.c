@@ -36,6 +36,7 @@ typedef struct {
     TGE_FixedStep step;
     TGE_View view; /* playfield layout; view.area is the interior */
     int w, h;      /* last canvas size the view was computed for */
+    bool paused;
 } GameState;
 
 static TGE_App *g_app = NULL;
@@ -86,6 +87,7 @@ static void snake_reset(GameState *s)
     s->dir = TGE_DIR_RIGHT;
     s->score = 0;
     s->state = SNAKE_RUNNING;
+    s->paused = false;
     tge_fixedstep_init(&s->step, MOVE_INTERVAL);
     tge_input_buffer_clear(&s->input);
     spawn_food(s);
@@ -171,7 +173,7 @@ static bool snake_step(GameState *s)
 static void game_update(TGE_Scene *scene, float dt)
 {
     GameState *s = (GameState *)scene->userdata;
-    if (s->state != SNAKE_RUNNING || !s->view.valid)
+    if (s->state != SNAKE_RUNNING || s->paused || !s->view.valid)
         return;
     tge_fixedstep_update(&s->step, dt);
     while (tge_fixedstep_next(&s->step)) {
@@ -220,6 +222,14 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
                                TGE_COLOR_BLACK);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
                                TGE_COLOR_BLACK);
+    } else if (s->paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
+                      TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+        tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
+                               TGE_COLOR_BLACK);
     }
 }
 
@@ -231,6 +241,13 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         snake_resize(s, ev->data.resize.w, ev->data.resize.h);
         return;
     }
+    if (tge_input_pause(ev)) {
+        if (s->state != SNAKE_OVER)
+            s->paused = !s->paused;
+        return;
+    }
+    if (s->paused && !tge_input_cancel(ev))
+        return;
     TGE_Direction d = tge_input_direction(ev);
     if (d != TGE_DIR_NONE) {
         tge_input_buffer_push(&s->input, d);
@@ -263,7 +280,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
     const char *title = " SNAKE ";
-    const char *controls = " Arrows or WASD to move ";
+    const char *controls = " Arrows/WASD move  [P] pause ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
     tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);

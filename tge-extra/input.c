@@ -59,3 +59,11 @@ bool tge_input_quit(const TGE_Event *ev)
     uint32_t c = ev->data.text.codepoint;
     return c == 'q' || c == 'Q';
 }
+
+bool tge_input_pause(const TGE_Event *ev)
+{
+    if (!ev || ev->type != TGE_EVENT_TEXT)
+        return false;
+    uint32_t c = ev->data.text.codepoint;
+    return c == 'p' || c == 'P';
+}
