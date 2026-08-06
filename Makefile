@@ -27,7 +27,7 @@ tge-extra/%.o: tge-extra/%.c
 TEST_BINS = $(patsubst %.c,%,$(wildcard tests/test_*.c))
 
 test: $(TARGET) $(EXTRA_TARGET) $(TEST_BINS) tests/check_no_malloc check_headers
-	./tests/check_no_malloc
+	@if [ -x tests/check_no_malloc ]; then ./tests/check_no_malloc; else echo "  SKIP check_no_malloc: linker does not support --wrap"; fi
 	@ok=0; fail=0; \
 	for t in $(TEST_BINS); do \
 		printf "  RUN   $$t\n"; \
@@ -42,12 +42,21 @@ test: $(TARGET) $(EXTRA_TARGET) $(TEST_BINS) tests/check_no_malloc check_headers
 tests/test_%: tests/test_%.c $(TARGET) $(EXTRA_TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge-extra -ltge -lm -o $@
 
+# check_no_malloc uses GNU ld's --wrap, which macOS's linker does not
+# support; probe for it and skip the check where it is unavailable.
 tests/check_no_malloc: tests/check_no_malloc.c $(TARGET)
-	$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge -lm \
-		-Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -o $@
+	@probe=$$(mktemp /tmp/tge_wrap_XXX.c); \
+	if printf 'int main(void){return 0;}\n' > $$probe && \
+	   $(CC) $(CFLAGS) $$probe -Wl,--wrap=malloc -o /tmp/tge_wrap_probe 2>/dev/null; then \
+		$(CC) $(CFLAGS) $(INCLUDES) -Isrc $< -L. -ltge -lm \
+			-Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -o $@; \
+	else \
+		echo "  SKIP tests/check_no_malloc: linker does not support --wrap"; \
+	fi; \
+	rm -f $$probe /tmp/tge_wrap_probe
 
 check_no_malloc: tests/check_no_malloc
-	./tests/check_no_malloc
+	@if [ -x tests/check_no_malloc ]; then ./tests/check_no_malloc; else echo "  SKIP check_no_malloc: linker does not support --wrap"; fi
 
 check_headers: $(TARGET)
 	@for h in include/tge/*.h; do \
