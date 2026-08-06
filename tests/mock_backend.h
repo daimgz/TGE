@@ -15,6 +15,8 @@ typedef struct {
     int presented_full;
     TGE_Cell captured[128];
     int captured_count;
+    int query_w;
+    int query_h;
     char title[64];
 } MockData;
 
@@ -35,6 +37,16 @@ static inline int mock_width(void *d)
 {
     (void)d;
     return 0;
+}
+
+static inline bool mock_query_size(void *d, int *w, int *h)
+{
+    MockData *m = (MockData *)d;
+    if (m->query_w <= 0 || m->query_h <= 0)
+        return false;
+    *w = m->query_w;
+    *h = m->query_h;
+    return true;
 }
 
 static inline int mock_height(void *d)
@@ -100,6 +112,7 @@ static inline TGE_Backend *mock_backend_create(MockData **out)
     b->term = mock_term;
     b->width = mock_width;
     b->height = mock_height;
+    b->query_size = mock_query_size;
     b->present = mock_present;
     b->read_input = mock_read_input;
     b->ticks = mock_ticks;

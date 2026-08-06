@@ -156,6 +156,27 @@ TGE_TEST(title_routed_to_backend)
     tge_runtime_destroy(rt);
 }
 
+TGE_TEST(resize_detected_via_query_size)
+{
+    MockData *m;
+    TGE_Runtime *rt = tge_runtime_create_with_backend(mock_backend_create(&m),
+                                                      10, 5);
+    m->query_w = 12;
+    m->query_h = 7;
+    TGE_Event ev;
+    TGE_ASSERT(tge_runtime_poll_event(rt, &ev) == true, "got resize event");
+    TGE_ASSERT(ev.type == TGE_EVENT_RESIZE, "resize");
+    TGE_ASSERT(ev.data.resize.w == 12 && ev.data.resize.h == 7, "size in event");
+    TGE_ASSERT(tge_runtime_width(rt) == 12 && tge_runtime_height(rt) == 7,
+               "runtime size updated");
+    TGE_ASSERT(tge_runtime_poll_event(rt, &ev) == false, "no duplicate resize");
+    m->query_w = 9;
+    TGE_ASSERT(tge_runtime_poll_event(rt, &ev) == true &&
+               ev.data.resize.w == 9 && ev.data.resize.h == 7,
+               "second resize detected");
+    tge_runtime_destroy(rt);
+}
+
 int main(void)
 {
     test_create_destroy();
@@ -168,5 +189,6 @@ int main(void)
     test_queue_drops_oldest();
     test_ticks_and_now();
     test_title_routed_to_backend();
+    test_resize_detected_via_query_size();
     return tge_test_report();
 }

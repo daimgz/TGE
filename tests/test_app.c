@@ -92,11 +92,25 @@ TGE_TEST(quit_event_via_pushevent)
     TGE_Destroy(app);
 }
 
+TGE_TEST(resize_forces_full_repaint)
+{
+    MockData *m;
+    TGE_App *app = make_test_app(&m); /* starts 10x5 */
+    mock_set_input(m, "\x1b[8;4;8t", 8); /* XTerm report -> resize to 8x4 */
+    tge_app_frame(app);
+    TGE_ASSERT(app->current->width == 8 && app->current->height == 4,
+               "canvas resized to 8x4");
+    TGE_ASSERT(m->presented >= 1, "frame presented");
+    TGE_ASSERT(m->captured_count == 8 * 4, "full repaint after resize");
+    TGE_Destroy(app);
+}
+
 int main(void)
 {
     test_pushevent_dispatched_to_event_cb();
     test_pushevent_overflow_drops_extras();
     test_setfps_and_settitle();
     test_quit_event_via_pushevent();
+    test_resize_forces_full_repaint();
     return tge_test_report();
 }

@@ -84,6 +84,7 @@ struct TGE_App {
     TGE_SceneOp op_queue[TGE_SCENE_OPS_MAX];
     int op_count;
     bool quit;
+    bool full_repaint; /* next present writes the whole canvas (after resize) */
     float fps;
     double last_time;
     tge_init_fn init_cb;
@@ -127,6 +128,8 @@ void tge_runtime_pump_input(TGE_Runtime *rt);
 void tge_runtime_pump_timers(TGE_Runtime *rt, double now_sec);
 bool tge_runtime_poll_queued(TGE_Runtime *rt, TGE_Event *ev);
 void tge_runtime_set_title(TGE_Runtime *rt, const char *title);
+void tge_runtime_present_full(TGE_Runtime *rt, const TGE_Cell *cells,
+                              int stride);
 
 /* ── Canvas internals (Fase 1.6) ─────────────────────── */
 

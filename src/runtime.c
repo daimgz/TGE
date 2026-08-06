@@ -14,7 +14,25 @@ static void rq_push(TGE_Runtime *rt, TGE_Event *ev)
 
 void tge_runtime_pump_input(TGE_Runtime *rt)
 {
-    if (!rt || !rt->backend || !rt->backend->read_input)
+    if (!rt || !rt->backend)
+        return;
+    /* Terminals change size without sending anything; poll the real size each
+     * frame (TIOCGWINSZ on the ANSI backend) and turn a change into a resize
+     * event so the app can rebuild its canvases. */
+    if (rt->backend->query_size) {
+        int qw = 0, qh = 0;
+        if (rt->backend->query_size(rt->backend->data, &qw, &qh) &&
+            qw > 0 && qh > 0 && (qw != rt->width || qh != rt->height)) {
+            rt->width = qw;
+            rt->height = qh;
+            TGE_Event ev;
+            ev.type = TGE_EVENT_RESIZE;
+            ev.data.resize.w = qw;
+            ev.data.resize.h = qh;
+            rq_push(rt, &ev);
+        }
+    }
+    if (!rt->backend->read_input)
         return;
     char buf[256];
     int n = rt->backend->read_input(rt->backend->data, buf, (int)sizeof(buf));

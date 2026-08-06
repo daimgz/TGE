@@ -50,6 +50,9 @@ static void handle_events(TGE_App *app, double now)
             tge_canvas_resize(app->previous, w, h);
             tge_clear(app->previous, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
             ensure_diff_capacity(app, w, h);
+            /* The diff only emits changed cells; after a resize the terminal
+             * still shows glyphs from the old size, so repaint everything. */
+            app->full_repaint = true;
         }
         if (ev.type == TGE_EVENT_QUIT) {
             app->quit = true;
@@ -114,7 +117,13 @@ void tge_app_frame(TGE_App *app)
     draw_scene(app);
 
     tge_renderer_diff(app->current, app->previous, &app->diff);
-    tge_runtime_present(rt, &app->diff, app->current->cells, app->current->width);
+    if (app->full_repaint) {
+        tge_runtime_present_full(rt, app->current->cells, app->current->width);
+        app->full_repaint = false;
+    } else {
+        tge_runtime_present(rt, &app->diff, app->current->cells,
+                            app->current->width);
+    }
     {
         TGE_Canvas *tmp = app->previous;
         app->previous = app->current;
