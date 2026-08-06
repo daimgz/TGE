@@ -1,6 +1,7 @@
 #include "tge-extra/grid.h"
 
 #include "tge/tge_canvas.h"
+#include "tge/tge_unicode.h"
 #include "tge_internal.h"
 #include "tge_test.h"
 
@@ -21,10 +22,10 @@ static TGE_GridTheme theme_of(const char *empty, const char *def,
                               const char *border, const char *selection)
 {
     static TGE_Sprite s[4];
-    s[0] = (TGE_Sprite){ 2, 1, empty };
-    s[1] = (TGE_Sprite){ 2, 1, def };
-    s[2] = (TGE_Sprite){ 2, 1, border };
-    s[3] = (TGE_Sprite){ 2, 1, selection };
+    s[0] = (TGE_Sprite)TGE_SPRITE(2, 1, empty, NULL);
+    s[1] = (TGE_Sprite)TGE_SPRITE(2, 1, def, NULL);
+    s[2] = (TGE_Sprite)TGE_SPRITE(2, 1, border, NULL);
+    s[3] = (TGE_Sprite)TGE_SPRITE(2, 1, selection, NULL);
     TGE_GridTheme t;
     t.empty = &s[0];
     t.default_sprite = &s[1];
@@ -203,10 +204,10 @@ TGE_TEST(theme_swap_changes_look_without_touching_draw_calls)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 2, 1);
-    TGE_Sprite e1 = { 2, 1, ".." }, f1 = { 2, 1, "##" }, b1 = { 2, 1, "::" };
-    TGE_Sprite s1 = { 2, 1, "()" };
-    TGE_Sprite e2 = { 2, 1, "xx" }, f2 = { 2, 1, "oo" }, b2 = { 2, 1, "##" };
-    TGE_Sprite s2 = { 2, 1, "<>" };
+    TGE_Sprite e1 = TGE_SPRITE(2, 1, "..", NULL), f1 = TGE_SPRITE(2, 1, "##", NULL), b1 = TGE_SPRITE(2, 1, "::", NULL);
+    TGE_Sprite s1 = TGE_SPRITE(2, 1, "()", NULL);
+    TGE_Sprite e2 = TGE_SPRITE(2, 1, "xx", NULL), f2 = TGE_SPRITE(2, 1, "oo", NULL), b2 = TGE_SPRITE(2, 1, "##", NULL);
+    TGE_Sprite s2 = TGE_SPRITE(2, 1, "<>", NULL);
     TGE_GridTheme blocks = { &e1, &f1, &b1, &s1 };
     TGE_GridTheme dots = { &e2, &f2, &b2, &s2 };
     g.theme = &blocks;
@@ -226,10 +227,10 @@ TGE_TEST(theme_swap_keeps_grid_geometry)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 2, 1);
-    TGE_Sprite e1 = { 2, 1, ".." }, f1 = { 2, 1, "##" }, b1 = { 2, 1, "::" };
-    TGE_Sprite s1 = { 2, 1, "()" };
-    TGE_Sprite e2 = { 2, 1, "xx" }, f2 = { 2, 1, "oo" }, b2 = { 2, 1, "##" };
-    TGE_Sprite s2 = { 2, 1, "<>" };
+    TGE_Sprite e1 = TGE_SPRITE(2, 1, "..", NULL), f1 = TGE_SPRITE(2, 1, "##", NULL), b1 = TGE_SPRITE(2, 1, "::", NULL);
+    TGE_Sprite s1 = TGE_SPRITE(2, 1, "()", NULL);
+    TGE_Sprite e2 = TGE_SPRITE(2, 1, "xx", NULL), f2 = TGE_SPRITE(2, 1, "oo", NULL), b2 = TGE_SPRITE(2, 1, "##", NULL);
+    TGE_Sprite s2 = TGE_SPRITE(2, 1, "<>", NULL);
     TGE_GridTheme blocks = { &e1, &f1, &b1, &s1 };
     TGE_GridTheme dots = { &e2, &f2, &b2, &s2 };
     g.theme = &blocks;
@@ -395,9 +396,9 @@ TGE_TEST(theme_without_selection_skips_selection_draw)
     TGE_Canvas *c = tge_canvas_create(4, 2);
     TGE_Grid g;
     tge_grid_init(&g, c);
-    TGE_Sprite e = { 2, 1, ".." };
-    TGE_Sprite f = { 2, 1, "##" };
-    TGE_Sprite b = { 2, 1, "::" };
+    TGE_Sprite e = TGE_SPRITE(2, 1, "..", NULL);
+    TGE_Sprite f = TGE_SPRITE(2, 1, "##", NULL);
+    TGE_Sprite b = TGE_SPRITE(2, 1, "::", NULL);
     TGE_GridTheme t = { &e, &f, &b, NULL };
     g.theme = &t;
     tge_grid_put_tile(&g, 0, 0, TGE_TILE_SELECTION, TGE_COLOR_GREEN,
@@ -415,7 +416,7 @@ TGE_TEST(put_sprite_2x1_two_different_glyphs)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 2, 1);
-    TGE_Sprite spr = { 2, 1, "()" };
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "()", NULL);
     tge_grid_put(&g, 1, 1, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_is(c, 2, 1, '('), "left column gets '('");
     TGE_ASSERT(cell_is(c, 3, 1, ')'), "right column gets ')'");
@@ -427,7 +428,7 @@ TGE_TEST(put_sprite_2x2_four_glyphs)
     TGE_Canvas *c = tge_canvas_create(8, 8);
     TGE_Grid g;
     tge_grid_init(&g, c);
-    TGE_Sprite spr = { 2, 2, "abcd" };
+    TGE_Sprite spr = TGE_SPRITE(2, 2, "abcd", NULL);
     tge_grid_put(&g, 2, 2, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_is(c, 2, 2, 'a'), "row 0, col 0");
     TGE_ASSERT(cell_is(c, 3, 2, 'b'), "row 0, col 1");
@@ -442,7 +443,7 @@ TGE_TEST(put_sprite_ignores_cell_size)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 4, 2);
-    TGE_Sprite spr = { 2, 1, "ab" };
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "ab", NULL);
     tge_grid_put(&g, 0, 0, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_is(c, 0, 0, 'a') && cell_is(c, 1, 0, 'b'),
                "sprite drawn at natural 2x1, not stretched to 4x2");
@@ -457,11 +458,11 @@ TGE_TEST(put_sprite_too_few_glyphs_skipped)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 2, 1);
-    TGE_Sprite wrong = { 2, 1, "x" };
+    TGE_Sprite wrong = TGE_SPRITE(2, 1, "x", NULL);
     tge_grid_put(&g, 0, 0, &wrong, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_at(c, 0, 0)->ch == 0, "too few glyphs not drawn");
     TGE_ASSERT(cell_at(c, 1, 0)->ch == 0, "too few glyphs not drawn");
-    TGE_Sprite extra = { 2, 1, "xyz" };
+    TGE_Sprite extra = TGE_SPRITE(2, 1, "xyz", NULL);
     tge_grid_put(&g, 0, 0, &extra, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_at(c, 0, 0)->ch == 0, "extra glyphs not drawn");
     tge_canvas_destroy(c);
@@ -473,7 +474,7 @@ TGE_TEST(put_sprite_clips_at_edge)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 2, 1);
-    TGE_Sprite spr = { 2, 1, "()" };
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "()", NULL);
     tge_grid_put(&g, 3, 0, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_is(c, 6, 0, '('), "first glyph in bounds");
     TGE_ASSERT(cell_at(c, 5, 0)->ch == 0, "out-of-bounds second glyph skipped");
@@ -486,7 +487,7 @@ TGE_TEST(put_sprite_utf8_glyph_decoded)
     TGE_Grid g;
     tge_grid_init(&g, c);
     tge_grid_set_cell_size(&g, 2, 1);
-    TGE_Sprite spr = { 2, 1, "\xE2\x96\x88\xE2\x96\x93" }; /* U+2588, U+2593 */
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x93", NULL); /* U+2588, U+2593 */
     tge_grid_put(&g, 0, 0, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_at(c, 0, 0)->ch == 0x2588, "block glyph decoded");
     TGE_ASSERT(cell_at(c, 1, 0)->ch == 0x2593, "shade glyph decoded");
@@ -571,12 +572,38 @@ TGE_TEST(draw_text_unscaled_at_scaled_position)
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(attach_repaints_canvas_keeps_geometry)
+{
+    TGE_Canvas *c = tge_canvas_create(8, 4);
+    TGE_Canvas *c2 = tge_canvas_create(8, 4);
+    TGE_Grid g;
+    tge_grid_init(&g, c);
+    tge_grid_set_cell_size(&g, 2, 1);
+    tge_grid_set_origin(&g, 1, 1);
+    g.theme = &TGE_GRID_THEME_DOTS;
+
+    tge_grid_set_cell(&g, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 1, 1, 'o'), "draw goes to first canvas");
+    TGE_ASSERT(cell_at(c2, 1, 1)->ch == 0, "second canvas untouched");
+
+    tge_grid_attach(&g, c2);
+    TGE_ASSERT(g.cell_w == 2 && g.cell_h == 1, "cell size persists");
+    TGE_ASSERT(g.ox == 1 && g.oy == 1, "origin persists");
+    TGE_ASSERT(g.theme == &TGE_GRID_THEME_DOTS, "theme persists");
+    TGE_ASSERT(cell_at(c, 1, 1)->ch != 0, "first canvas keeps old pixels");
+
+    tge_grid_set_cell(&g, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c2, 1, 1, 'o'), "draw now goes to second canvas");
+    tge_canvas_destroy(c);
+    tge_canvas_destroy(c2);
+}
+
 TGE_TEST(null_safety)
 {
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_Grid g;
     tge_grid_init(&g, c);
-    TGE_Sprite spr = { 2, 1, "()" };
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "()", NULL);
 
     tge_grid_init(NULL, NULL);
     tge_grid_set_origin(NULL, 1, 1);
@@ -596,13 +623,110 @@ TGE_TEST(null_safety)
     tge_grid_draw_line(NULL, 0, 0, 1, 1, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     tge_grid_draw_circle(NULL, 0, 0, 1, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     tge_grid_draw_text(NULL, 0, 0, "x", TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_attach(NULL, NULL);
+    tge_grid_attach(&g, NULL);
     TGE_ASSERT(tge_grid_width(NULL) == 0, "NULL width");
     TGE_ASSERT(tge_grid_height(NULL) == 0, "NULL height");
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(sprite_fallback_ascii_when_off)
+{
+    TGE_Canvas *c = tge_canvas_create(8, 4);
+    TGE_Grid g;
+    tge_grid_init(&g, c);
+    tge_grid_set_cell_size(&g, 2, 1);
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88", "##");
+
+    tge_unicode_set_mode(TGE_UNICODE_OFF);
+    tge_grid_put(&g, 0, 0, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 0, 0, '#') && cell_is(c, 1, 0, '#'),
+               "ascii fallback drawn in OFF mode");
+
+    tge_unicode_set_mode(TGE_UNICODE_ON);
+    tge_grid_put(&g, 0, 0, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 0, 0)->ch == 0x2588 && cell_at(c, 1, 0)->ch == 0x2588,
+               "primary glyph drawn in ON mode");
+
+    tge_unicode_set_mode(TGE_UNICODE_AUTO);
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(sprite_without_fallback_keeps_primary)
+{
+    TGE_Canvas *c = tge_canvas_create(8, 4);
+    TGE_Grid g;
+    tge_grid_init(&g, c);
+    tge_grid_set_cell_size(&g, 2, 1);
+    TGE_Sprite spr = TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88", NULL);
+
+    tge_unicode_set_mode(TGE_UNICODE_OFF);
+    tge_grid_put(&g, 0, 0, &spr, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 0, 0)->ch == 0x2588 && cell_at(c, 1, 0)->ch == 0x2588,
+               "no fallback keeps primary even in OFF mode");
+
+    tge_unicode_set_mode(TGE_UNICODE_AUTO);
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(tile_fallback_resolves_theme)
+{
+    TGE_Canvas *c = tge_canvas_create(4, 4);
+    TGE_Grid g;
+    tge_grid_init(&g, c);
+    tge_grid_set_cell_size(&g, 2, 1);
+    g.theme = &TGE_GRID_THEME_BLOCKS;
+
+    tge_unicode_set_mode(TGE_UNICODE_OFF);
+    tge_grid_set_cell(&g, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 0, 0, '#') && cell_is(c, 1, 0, '#'),
+               "default tile ascii fallback");
+    tge_grid_erase(&g, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 0, 0, ' ') && cell_is(c, 1, 0, ' '),
+               "empty tile ascii fallback");
+    tge_grid_draw_border(&g, 0, 1, 2, 1, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 0, 1, '#') && cell_is(c, 1, 1, '#'),
+               "border tile ascii fallback");
+    tge_grid_put_tile(&g, 0, 2, TGE_TILE_SELECTION, TGE_COLOR_GREEN,
+                      TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_is(c, 0, 2, '.') && cell_is(c, 1, 2, '.'),
+               "selection tile ascii fallback");
+
+    tge_unicode_set_mode(TGE_UNICODE_ON);
+    tge_grid_set_cell(&g, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 0, 0)->ch == 0x2588, "primary in ON mode");
+
+    tge_unicode_set_mode(TGE_UNICODE_AUTO);
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(draw_frame_ascii_when_off)
+{
+    TGE_Canvas *c = tge_canvas_create(20, 8);
+    TGE_Grid g;
+    tge_grid_init(&g, c);
+    tge_grid_set_cell_size(&g, 2, 1);
+    tge_grid_set_origin(&g, 2, 1);
+
+    tge_unicode_set_mode(TGE_UNICODE_OFF);
+    tge_grid_draw_frame(&g, 1, 1, 4, 3, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 4, 2)->ch == '+', "top-left corner");
+    TGE_ASSERT(cell_at(c, 11, 2)->ch == '+', "top-right corner");
+    TGE_ASSERT(cell_at(c, 4, 4)->ch == '+', "bottom-left corner");
+    TGE_ASSERT(cell_at(c, 11, 4)->ch == '+', "bottom-right corner");
+    for (int x = 5; x <= 10; x++)
+        TGE_ASSERT(cell_at(c, x, 2)->ch == '-' && cell_at(c, x, 4)->ch == '-',
+                   "horizontal edges");
+    TGE_ASSERT(cell_at(c, 4, 3)->ch == '|' && cell_at(c, 11, 3)->ch == '|',
+               "vertical edges");
+
+    tge_unicode_set_mode(TGE_UNICODE_AUTO);
+    tge_canvas_destroy(c);
+}
+
 int main(void)
 {
+    tge_unicode_set_mode(TGE_UNICODE_ON);
     test_init_defaults();
     test_square_pixels_helper();
     test_origin_and_cell_size_change_size();
@@ -636,6 +760,11 @@ int main(void)
     test_draw_line_horizontal_and_diagonal();
     test_draw_circle_outline_radius_one();
     test_draw_text_unscaled_at_scaled_position();
+    test_attach_repaints_canvas_keeps_geometry();
     test_null_safety();
+    test_sprite_fallback_ascii_when_off();
+    test_sprite_without_fallback_keeps_primary();
+    test_tile_fallback_resolves_theme();
+    test_draw_frame_ascii_when_off();
     return tge_test_report();
 }

@@ -71,6 +71,11 @@ void tge_grid_view_set_cell(TGE_GridView *view, int lx, int ly, TGE_Color fg,
 void tge_grid_view_put(TGE_GridView *view, int lx, int ly,
                        const TGE_Sprite *sprite, TGE_Color fg, TGE_Color bg);
 
+/* Same as tge_grid_view_put plus cell attributes (TGE_CELL_ATTR_*). */
+void tge_grid_view_put_attr(TGE_GridView *view, int lx, int ly,
+                            const TGE_Sprite *sprite, TGE_Color fg,
+                            TGE_Color bg, uint8_t attr);
+
 #ifdef __cplusplus
 }
 #endif

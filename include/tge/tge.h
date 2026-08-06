@@ -8,5 +8,6 @@
 #include "tge_app.h"
 #include "tge_scene.h"
 #include "tge_utf8.h"
+#include "tge_unicode.h"
 
 #endif

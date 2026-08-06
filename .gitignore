@@ -24,6 +24,7 @@ tests/test_timer
 tests/test_fixedstep
 tests/test_input
 tests/test_grid
+tests/test_unicode
 tests/check_no_malloc
 fuzz/fuzz_*
 benchmarks/bench_*

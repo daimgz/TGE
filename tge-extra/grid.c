@@ -1,25 +1,31 @@
 #include "grid.h"
 
+#include "tge/tge_unicode.h"
 #include "tge/tge_utf8.h"
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
-static const TGE_Sprite block_empty = { 2, 1, "  " };
-static const TGE_Sprite block_default = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite block_border = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite block_select = { 2, 1, "\xE2\x96\x93\xE2\x96\x93" };
+static const TGE_Sprite block_empty = TGE_SPRITE(2, 1, "  ", NULL);
+static const TGE_Sprite block_default =
+    TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88", "##");
+static const TGE_Sprite block_border =
+    TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88", "##");
+static const TGE_Sprite block_select =
+    TGE_SPRITE(2, 1, "\xE2\x96\x93\xE2\x96\x93", "..");
 
-static const TGE_Sprite ascii_empty = { 2, 1, "  " };
-static const TGE_Sprite ascii_default = { 2, 1, "[]" };
-static const TGE_Sprite ascii_border = { 2, 1, "##" };
-static const TGE_Sprite ascii_select = { 2, 1, "<>" };
+static const TGE_Sprite ascii_empty = TGE_SPRITE(2, 1, "  ", NULL);
+static const TGE_Sprite ascii_default = TGE_SPRITE(2, 1, "[]", NULL);
+static const TGE_Sprite ascii_border = TGE_SPRITE(2, 1, "##", NULL);
+static const TGE_Sprite ascii_select = TGE_SPRITE(2, 1, "<>", NULL);
 
-static const TGE_Sprite dots_empty = { 2, 1, "\xC2\xB7 " }; /* U+00B7 + space */
-static const TGE_Sprite dots_default = { 2, 1, "oo" };
-static const TGE_Sprite dots_border = { 2, 1, "##" };
-static const TGE_Sprite dots_select = { 2, 1, "()" };
+static const TGE_Sprite dots_empty =
+    TGE_SPRITE(2, 1, "\xC2\xB7 ", ". "); /* U+00B7 + space */
+static const TGE_Sprite dots_default = TGE_SPRITE(2, 1, "oo", NULL);
+static const TGE_Sprite dots_border = TGE_SPRITE(2, 1, "##", NULL);
+static const TGE_Sprite dots_select = TGE_SPRITE(2, 1, "()", NULL);
 
 const TGE_GridTheme TGE_GRID_THEME_BLOCKS = { &block_empty, &block_default,
                                               &block_border, &block_select };
@@ -46,6 +52,13 @@ void tge_grid_init(TGE_Grid *g, TGE_Canvas *canvas)
     g->cell_w = 1;
     g->cell_h = 1;
     g->theme = &TGE_GRID_THEME_BLOCKS;
+}
+
+void tge_grid_attach(TGE_Grid *g, TGE_Canvas *canvas)
+{
+    if (!g)
+        return;
+    g->canvas = canvas;
 }
 
 void tge_grid_set_origin(TGE_Grid *g, int ox, int oy)
@@ -99,6 +112,16 @@ void tge_grid_size_for(const TGE_Grid *g, int w, int h, int *gw, int *gh)
     *gh = lh / g->cell_h;
 }
 
+/* Which glyph string a sprite draws: the primary `utf8` when Unicode is
+ * available, otherwise the author-chosen `ascii` fallback (or the primary if
+ * the sprite has no fallback). */
+static const char *sprite_glyphs_source(const TGE_Sprite *sprite)
+{
+    if (tge_unicode_supported())
+        return sprite->utf8;
+    return sprite->ascii ? sprite->ascii : sprite->utf8;
+}
+
 /* Decode `sprite` into `buf` (capacity `cap`). Returns the number of glyphs on
  * success, -1 on error; a message is printed to stderr and the sprite is
  * ignored so misconfigurations are not silent. */
@@ -116,9 +139,10 @@ static int sprite_glyphs(const TGE_Sprite *sprite, uint32_t *buf, int cap)
         fprintf(stderr, "tge_grid: sprite has more than %d glyphs\n", cap);
         return -1;
     }
+    const char *source = sprite_glyphs_source(sprite);
     int count = 0;
-    const char *p = sprite->utf8;
-    int remaining = (int)strlen(sprite->utf8);
+    const char *p = source;
+    int remaining = (int)strlen(source);
     while (remaining > 0 && count < cap) {
         uint32_t glyph;
         int consumed = tge_utf8_decode(p, remaining, &glyph);
@@ -255,23 +279,31 @@ void tge_grid_draw_frame(TGE_Grid *g, int lx, int ly, int lw, int lh,
 {
     if (!g || !g->canvas || lw <= 0 || lh <= 0)
         return;
+    bool unicode = tge_unicode_supported();
+
+    uint32_t hline = unicode ? 0x2500 : '-';
+    uint32_t vline = unicode ? 0x2502 : '|';
     TGE_Canvas *c = g->canvas;
     int x = g->ox + lx * g->cell_w;
     int y = g->oy + ly * g->cell_h;
     int x2 = x + lw * g->cell_w - 1;
     int y2 = y + lh * g->cell_h - 1;
     for (int i = x + 1; i < x2; i++) {
-        tge_set_cell(c, i, y, 0x2500, fg, bg);
-        tge_set_cell(c, i, y2, 0x2500, fg, bg);
+        tge_set_cell(c, i, y, hline, fg, bg);
+        tge_set_cell(c, i, y2, hline, fg, bg);
     }
     for (int i = y + 1; i < y2; i++) {
-        tge_set_cell(c, x, i, 0x2502, fg, bg);
-        tge_set_cell(c, x2, i, 0x2502, fg, bg);
+        tge_set_cell(c, x, i, vline, fg, bg);
+        tge_set_cell(c, x2, i, vline, fg, bg);
     }
-    tge_set_cell(c, x, y, 0x250C, fg, bg);
-    tge_set_cell(c, x2, y, 0x2510, fg, bg);
-    tge_set_cell(c, x, y2, 0x2514, fg, bg);
-    tge_set_cell(c, x2, y2, 0x2518, fg, bg);
+    uint32_t tl = unicode ? 0x250C : '+';
+    uint32_t tr = unicode ? 0x2510 : '+';
+    uint32_t bl = unicode ? 0x2514 : '+';
+    uint32_t br = unicode ? 0x2518 : '+';
+    tge_set_cell(c, x, y, tl, fg, bg);
+    tge_set_cell(c, x2, y, tr, fg, bg);
+    tge_set_cell(c, x, y2, bl, fg, bg);
+    tge_set_cell(c, x2, y2, br, fg, bg);
 }
 
 void tge_grid_draw_line(TGE_Grid *g, int x1, int y1, int x2, int y2,
@@ -342,6 +374,12 @@ static int count_glyphs(const char *s, int len)
 void tge_grid_put(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
                   TGE_Color fg, TGE_Color bg)
 {
+    tge_grid_put_attr(g, lx, ly, sprite, fg, bg, 0);
+}
+
+void tge_grid_put_attr(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
+                       TGE_Color fg, TGE_Color bg, uint8_t attr)
+{
     if (!g || !g->canvas || !sprite || !sprite->utf8)
         return;
     if (sprite->width < 1 || sprite->height < 1) {
@@ -350,9 +388,10 @@ void tge_grid_put(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
         return;
     }
 
+    const char *source = sprite_glyphs_source(sprite);
     int n = sprite->width * sprite->height;
-    int len = (int)strlen(sprite->utf8);
-    int count = count_glyphs(sprite->utf8, len);
+    int len = (int)strlen(source);
+    int count = count_glyphs(source, len);
     if (count < 0) {
         fprintf(stderr, "tge_grid_put: invalid UTF-8 in sprite\n");
         return;
@@ -364,7 +403,7 @@ void tge_grid_put(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
         return;
     }
 
-    const char *p = sprite->utf8;
+    const char *p = source;
     int remaining = len;
     for (int i = 0; i < n; i++) {
         uint32_t glyph;
@@ -374,6 +413,6 @@ void tge_grid_put(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
 
         int x = g->ox + lx * g->cell_w + i % sprite->width;
         int y = g->oy + ly * g->cell_h + i / sprite->width;
-        tge_set_cell(g->canvas, x, y, glyph, fg, bg);
+        tge_set_cell_attr(g->canvas, x, y, glyph, fg, bg, attr);
     }
 }

@@ -1,6 +1,7 @@
 #include "tge-extra/grid_view.h"
 
 #include "tge/tge_canvas.h"
+#include "tge/tge_unicode.h"
 #include "tge_internal.h"
 #include "tge_test.h"
 
@@ -157,7 +158,7 @@ TGE_TEST(set_cell_writes_default_sprite)
 
 TGE_TEST(put_draws_sprite)
 {
-    static const TGE_Sprite cross = { 2, 1, "<>" };
+    static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_GridView v;
     tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
@@ -180,6 +181,7 @@ TGE_TEST(null_safety)
 
 int main(void)
 {
+    tge_unicode_set_mode(TGE_UNICODE_ON);
     test_init_1x1();
     test_init_2x1();
     test_null_theme_falls_back_to_blocks();

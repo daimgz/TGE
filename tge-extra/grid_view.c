@@ -58,3 +58,12 @@ void tge_grid_view_put(TGE_GridView *view, int lx, int ly,
         return;
     tge_grid_put(&view->grid, lx, ly, sprite, fg, bg);
 }
+
+void tge_grid_view_put_attr(TGE_GridView *view, int lx, int ly,
+                            const TGE_Sprite *sprite, TGE_Color fg,
+                            TGE_Color bg, uint8_t attr)
+{
+    if (!view)
+        return;
+    tge_grid_put_attr(&view->grid, lx, ly, sprite, fg, bg, attr);
+}

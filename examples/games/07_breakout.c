@@ -381,12 +381,15 @@ typedef struct {
     TGE_GridView view;
 } BreakoutRenderer;
 
-static const TGE_Sprite SPR_EMPTY = { 2, 1, "  " };
-static const TGE_Sprite SPR_BRICK = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite SPR_WALL = { 2, 1, "\xE2\x96\x88\xE2\x96\x88" };
-static const TGE_Sprite SPR_BALL = { 2, 1, "()" };
-static const TGE_Sprite SPR_PADDLE = { 2, 1, "\xE2\x96\x93\xE2\x96\x93" };
-static const TGE_Sprite SPR_SELECT = { 2, 1, "::" };
+static const TGE_Sprite SPR_EMPTY = TGE_SPRITE(2, 1, "  ", NULL);
+static const TGE_Sprite SPR_BRICK = TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88",
+                                               "##");
+static const TGE_Sprite SPR_WALL = TGE_SPRITE(2, 1, "\xE2\x96\x88\xE2\x96\x88",
+                                              "##");
+static const TGE_Sprite SPR_BALL = TGE_SPRITE(2, 1, "()", NULL);
+static const TGE_Sprite SPR_PADDLE = TGE_SPRITE(2, 1, "\xE2\x96\x93\xE2\x96\x93",
+                                                "==");
+static const TGE_Sprite SPR_SELECT = TGE_SPRITE(2, 1, "::", NULL);
 
 static const TGE_GridTheme BREAKOUT_THEME = {
     .empty = &SPR_EMPTY,

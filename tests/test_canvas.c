@@ -1,4 +1,5 @@
 #include "tge/tge_canvas.h"
+#include "tge/tge_unicode.h"
 #include "tge/tge_utf8.h"
 #include "tge_internal.h"
 #include "tge_test.h"
@@ -261,6 +262,24 @@ TGE_TEST(draw_frame_boxes)
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(draw_frame_ascii_when_off)
+{
+    TGE_Canvas *c = make_canvas(8, 6);
+    tge_clear(c, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_unicode_set_mode(TGE_UNICODE_OFF);
+    tge_draw_frame(c, 1, 1, 4, 3, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 1, 1)->ch == '+', "TL corner");
+    TGE_ASSERT(cell_at(c, 4, 1)->ch == '+', "TR corner");
+    TGE_ASSERT(cell_at(c, 1, 3)->ch == '+', "BL corner");
+    TGE_ASSERT(cell_at(c, 4, 3)->ch == '+', "BR corner");
+    TGE_ASSERT(cell_at(c, 2, 1)->ch == '-', "top edge");
+    TGE_ASSERT(cell_at(c, 1, 2)->ch == '|', "left edge");
+    tge_draw_rect(c, 1, 1, 4, 3, TGE_COLOR_RED, TGE_COLOR_BLACK);
+    TGE_ASSERT(cell_at(c, 2, 1)->ch == '#', "rect ascii block");
+    tge_unicode_set_mode(TGE_UNICODE_AUTO);
+    tge_canvas_destroy(c);
+}
+
 TGE_TEST(fill_rect_clipped)
 {
     TGE_Canvas *c = make_canvas(6, 4);
@@ -382,6 +401,7 @@ TGE_TEST(blit_copies_and_clips)
 
 int main(void)
 {
+    tge_unicode_set_mode(TGE_UNICODE_ON);
     test_create_destroy();
     test_create_invalid_size();
     test_width_height();
@@ -403,6 +423,7 @@ int main(void)
     test_draw_text_wide_at_edge();
     test_draw_rect_outline();
     test_draw_frame_boxes();
+    test_draw_frame_ascii_when_off();
     test_fill_rect_clipped();
     test_draw_line_horizontal();
     test_draw_line_diagonal();

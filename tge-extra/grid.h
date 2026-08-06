@@ -12,12 +12,30 @@ extern "C" {
  * in row-major order (width columns per row). Sprites are independent of the
  * grid cell size: tge_grid_put() renders them at natural terminal size,
  * anchored at a grid position, so a 3x3 sprite occupies 3 columns and 3 rows
- * no matter how big a grid cell is. */
+ * no matter how big a grid cell is.
+ *
+ * Both `utf8` and `ascii` must preserve the sprite dimensions: they must hold
+ * exactly `width` glyphs per row. A 2x1 sprite is "██"/"##" or "▓▓"/"..", not
+ * "█"/"#", or the fallback would change the sprite's geometry.
+ *
+ * `ascii` is the fallback representation, used when the terminal cannot
+ * render Unicode (tge_unicode_supported() false): the game keeps its shape
+ * on ASCII-only terminals. NULL means the sprite has no fallback and `utf8`
+ * is used either way. The fallback is chosen by intent, not converted
+ * automatically: pick glyphs that read well (e.g. "##" for "██"), and if a
+ * sprite is already ASCII leave `ascii` NULL.
+ *
+ * TGE_SPRITE is the convenient initializer (and keeps literals compiling
+ * cleanly under -Wextra if the field list ever grows). */
 typedef struct {
     int width;
     int height;
     const char *utf8;
+    const char *ascii;
 } TGE_Sprite;
+
+#define TGE_SPRITE(width, height, utf8, ascii)                                 \
+    { (width), (height), (utf8), (ascii) }
 
 /* Visual theme of a grid: one borrowed sprite per semantic tile role. Every
  * tile draw is resolved through the theme, so swapping the theme changes the
@@ -93,7 +111,10 @@ typedef struct {
  *   TGE_GRID_THEME_DOTS    empty "· ", default "oo", border "##", selection "()"
  *                          shows that a sprite need not be a solid block.
  *
- * They are designed for square pixels (2x1 cells). */
+ * They are designed for square pixels (2x1 cells). BLOCKS and DOTS carry
+ * ASCII fallbacks, so on an ASCII-only terminal the grid automatically
+ * renders the fallback glyphs and the look degrades gracefully instead of
+ * garbling. ASCII already is ASCII and has none. */
 extern const TGE_GridTheme TGE_GRID_THEME_BLOCKS;
 extern const TGE_GridTheme TGE_GRID_THEME_ASCII;
 extern const TGE_GridTheme TGE_GRID_THEME_DOTS;
@@ -101,6 +122,11 @@ extern const TGE_GridTheme TGE_GRID_THEME_DOTS;
 /* Attach a grid view to `canvas`. Cell size defaults to 1x1, origin to
  * (0, 0) and the theme to TGE_GRID_THEME_BLOCKS. */
 void tge_grid_init(TGE_Grid *g, TGE_Canvas *canvas);
+
+/* Re-point the grid at the canvas it draws into. The app swaps its double
+ * buffers every frame, so the canvas pointer changes on every draw; the
+ * origin, cell size and theme are configured once and persist. */
+void tge_grid_attach(TGE_Grid *g, TGE_Canvas *canvas);
 
 /* Move the physical origin of the grid view. */
 void tge_grid_set_origin(TGE_Grid *g, int ox, int oy);
@@ -137,6 +163,11 @@ void tge_grid_put_tile(TGE_Grid *g, int lx, int ly, TGE_GridTile tile,
  * misconfigurations are not silent. */
 void tge_grid_put(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
                   TGE_Color fg, TGE_Color bg);
+
+/* Same as tge_grid_put plus cell attributes (TGE_CELL_ATTR_*, OR-able, see
+ * tge_canvas.h). */
+void tge_grid_put_attr(TGE_Grid *g, int lx, int ly, const TGE_Sprite *sprite,
+                       TGE_Color fg, TGE_Color bg, uint8_t attr);
 
 /* Fill a logical rectangle of cells with the `tile` sprite of the theme. */
 void tge_grid_fill(TGE_Grid *g, int lx, int ly, int lw, int lh,

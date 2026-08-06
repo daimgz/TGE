@@ -49,6 +49,14 @@ typedef struct TGE_Cell {
     uint8_t  attr;
 } TGE_Cell;
 
+/* Cell attribute flags (SGR modes), OR-able into the attr field. */
+#define TGE_CELL_ATTR_BOLD       (1u << 0)
+#define TGE_CELL_ATTR_DIM        (1u << 1)
+#define TGE_CELL_ATTR_ITALIC     (1u << 2)
+#define TGE_CELL_ATTR_UNDERLINE  (1u << 3)
+#define TGE_CELL_ATTR_BLINK      (1u << 4)
+#define TGE_CELL_ATTR_REVERSE    (1u << 5)
+
 typedef struct TGE_Canvas TGE_Canvas;
 
 int  tge_canvas_width(const TGE_Canvas *canvas);
@@ -57,6 +65,9 @@ int  tge_canvas_height(const TGE_Canvas *canvas);
 void tge_clear(TGE_Canvas *canvas, uint32_t ch, TGE_Color fg, TGE_Color bg);
 void tge_set_cell(TGE_Canvas *canvas, int x, int y, uint32_t ch,
                   TGE_Color fg, TGE_Color bg);
+/* Same as tge_set_cell plus cell attributes (TGE_CELL_ATTR_*, OR-able). */
+void tge_set_cell_attr(TGE_Canvas *canvas, int x, int y, uint32_t ch,
+                       TGE_Color fg, TGE_Color bg, uint8_t attr);
 void tge_draw_text(TGE_Canvas *canvas, int x, int y, const char *text,
                    TGE_Color fg, TGE_Color bg);
 

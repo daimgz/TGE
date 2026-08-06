@@ -1,7 +1,9 @@
 #include "tge/tge_canvas.h"
+#include "tge/tge_unicode.h"
 #include "tge/tge_utf8.h"
 #include "tge_internal.h"
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -85,13 +87,19 @@ static void set_cell_impl(TGE_Canvas *c, int x, int y, uint32_t ch,
 void tge_set_cell(TGE_Canvas *canvas, int x, int y, uint32_t ch,
                   TGE_Color fg, TGE_Color bg)
 {
+    tge_set_cell_attr(canvas, x, y, ch, fg, bg, 0);
+}
+
+void tge_set_cell_attr(TGE_Canvas *canvas, int x, int y, uint32_t ch,
+                       TGE_Color fg, TGE_Color bg, uint8_t attr)
+{
     if (!canvas || !canvas->cells)
         return;
     if (tge_utf8_char_width(ch) == 2) {
-        set_cell_impl(canvas, x, y, ch, fg, bg, 0);
-        set_cell_impl(canvas, x + 1, y, 0, fg, bg, 0);
+        set_cell_impl(canvas, x, y, ch, fg, bg, attr);
+        set_cell_impl(canvas, x + 1, y, 0, fg, bg, attr);
     } else {
-        set_cell_impl(canvas, x, y, ch, fg, bg, 0);
+        set_cell_impl(canvas, x, y, ch, fg, bg, attr);
     }
 }
 
@@ -175,15 +183,17 @@ void tge_draw_rect(TGE_Canvas *canvas, int x, int y, int w, int h,
 {
     if (!canvas || w <= 0 || h <= 0)
         return;
+    bool unicode = tge_unicode_supported();
+    uint32_t block = unicode ? 0x2588 : '#';
     int x2 = x + w - 1;
     int y2 = y + h - 1;
     for (int i = x; i <= x2; i++) {
-        tge_set_cell(canvas, i, y, 0x2588, fg, bg);
-        tge_set_cell(canvas, i, y2, 0x2588, fg, bg);
+        tge_set_cell(canvas, i, y, block, fg, bg);
+        tge_set_cell(canvas, i, y2, block, fg, bg);
     }
     for (int i = y; i <= y2; i++) {
-        tge_set_cell(canvas, x, i, 0x2588, fg, bg);
-        tge_set_cell(canvas, x2, i, 0x2588, fg, bg);
+        tge_set_cell(canvas, x, i, block, fg, bg);
+        tge_set_cell(canvas, x2, i, block, fg, bg);
     }
 }
 
@@ -192,20 +202,28 @@ void tge_draw_frame(TGE_Canvas *canvas, int x, int y, int w, int h,
 {
     if (!canvas || w <= 0 || h <= 0)
         return;
+    bool unicode = tge_unicode_supported();
+
+    uint32_t hline = unicode ? 0x2500 : '-';
+    uint32_t vline = unicode ? 0x2502 : '|';
     int x2 = x + w - 1;
     int y2 = y + h - 1;
     for (int i = x + 1; i < x2; i++) {
-        tge_set_cell(canvas, i, y, 0x2500, fg, bg);
-        tge_set_cell(canvas, i, y2, 0x2500, fg, bg);
+        tge_set_cell(canvas, i, y, hline, fg, bg);
+        tge_set_cell(canvas, i, y2, hline, fg, bg);
     }
     for (int i = y + 1; i < y2; i++) {
-        tge_set_cell(canvas, x, i, 0x2502, fg, bg);
-        tge_set_cell(canvas, x2, i, 0x2502, fg, bg);
+        tge_set_cell(canvas, x, i, vline, fg, bg);
+        tge_set_cell(canvas, x2, i, vline, fg, bg);
     }
-    tge_set_cell(canvas, x, y, 0x250C, fg, bg);
-    tge_set_cell(canvas, x2, y, 0x2510, fg, bg);
-    tge_set_cell(canvas, x, y2, 0x2514, fg, bg);
-    tge_set_cell(canvas, x2, y2, 0x2518, fg, bg);
+    uint32_t tl = unicode ? 0x250C : '+';
+    uint32_t tr = unicode ? 0x2510 : '+';
+    uint32_t bl = unicode ? 0x2514 : '+';
+    uint32_t br = unicode ? 0x2518 : '+';
+    tge_set_cell(canvas, x, y, tl, fg, bg);
+    tge_set_cell(canvas, x2, y, tr, fg, bg);
+    tge_set_cell(canvas, x, y2, bl, fg, bg);
+    tge_set_cell(canvas, x2, y2, br, fg, bg);
 }
 
 void tge_fill_rect(TGE_Canvas *canvas, int x, int y, int w, int h,
