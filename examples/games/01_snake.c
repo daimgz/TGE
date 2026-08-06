@@ -40,6 +40,15 @@ typedef struct {
 
 static TGE_App *g_app = NULL;
 
+/* The world works in local coordinates (0..w-1, 0..h-1); the renderer is the
+ * only one that maps them to the screen with tge_rect_translate_point().
+ * view.area is that mapping's screen offset, so this returns the world's own
+ * 0-origin bounds. */
+static TGE_Rect world_bounds(const GameState *s)
+{
+    return tge_rect(0, 0, s->view.area.w, s->view.area.h);
+}
+
 static void snake_init(GameState *s)
 {
     tge_view_init(&s->view, MIN_FW, MIN_FH);
@@ -51,7 +60,7 @@ static bool spawn_food(GameState *s)
     if (s->view.area.w * s->view.area.h - s->len <= 0)
         return false;
     for (;;) {
-        TGE_Vec2i p = tge_rect_random_point(s->view.area);
+        TGE_Vec2i p = tge_rect_random_point(world_bounds(s));
         bool free_spot = true;
         for (int i = 0; i < s->len; i++) {
             if (tge_vec2i_eq(s->body[i], p)) {
@@ -112,7 +121,7 @@ static void snake_resize(GameState *s, int w, int h)
         break;
     case TGE_VIEW_RESIZED:
         for (int i = 0; i < s->len; i++)
-            s->body[i] = tge_vec2i_clamp_rect(s->body[i], s->view.area);
+            s->body[i] = tge_vec2i_clamp_rect(s->body[i], world_bounds(s));
         if (s->food.x >= s->view.area.w || s->food.y >= s->view.area.h) {
             if (!spawn_food(s))
                 s->state = SNAKE_OVER;
