@@ -28,10 +28,12 @@
  *                  texts (tge_printf), and the playfield through a
  *                  TGE_GridView (theme, cell size, origin). The world is only
  *                  read, never changed.
- *   SnakeGame      the whole game: the scene glue (TGE_App/Scene wiring) that
- *                  owns one SnakeWorld + one SnakeRenderer, moves turns into
- *                  the input buffer, resizes into world_resize and draws
- *                  through the renderer.
+ *   SnakeGame      the whole game: the scene glue (a TGE_GameContext from
+ *                  tge-extra/game, first member) that owns one SnakeWorld +
+ *                  one SnakeRenderer, moves turns into the input buffer,
+ *                  resizes into world_resize and draws through the renderer.
+ *                  The context adapts the engine's scenes to the game: the
+ *                  game never sees a TGE_Scene, only ctx->app / ctx->instance.
  *
  * The playfield (logical LX x LY in grid cells) comes from the terminal size
  * through TGE_View: on a resize the interior (view.area) is recomputed and
@@ -42,6 +44,7 @@
 
 #include "tge-extra/direction.h"
 #include "tge-extra/fixedstep.h"
+#include "tge-extra/game.h"
 #include "tge-extra/grid.h"
 #include "tge-extra/grid_view.h"
 #include "tge-extra/input.h"
@@ -91,12 +94,16 @@ typedef struct {
     TGE_GridView view;
 } SnakeRenderer;
 
-/* The game as a whole: world (rules) + renderer (screen). */
+/* The game as a whole: the scene glue (TGE_GameContext) + world + renderer. */
 typedef struct {
+    TGE_GameContext ctx; /* first member: scene->userdata == &game->ctx */
     SnakeWorld world;
     SnakeRenderer renderer;
 } SnakeGame;
 
+/* Only the title scene still talks directly to the app. Game scenes receive
+ * ctx->app through TGE_GameContext.
+ */
 static TGE_App *g_app = NULL;
 
 /* The steps the flow calls are implemented in Level 2, below the divider. */
@@ -133,9 +140,9 @@ static void renderer_draw(SnakeRenderer *renderer, TGE_Canvas *canvas,
 
 /* ── the scene callbacks: the whole loop, ~20 lines ────────────────────── */
 
-static void game_event(TGE_Scene *scene, TGE_Event *event)
+static void game_event(TGE_GameContext *ctx, TGE_Event *event)
 {
-    SnakeGame *game = (SnakeGame *)scene->userdata;
+    SnakeGame *game = (SnakeGame *)tge_game_instance(ctx);
 
     if (event->type == TGE_EVENT_RESIZE) {
         /* The terminal changed: recompute the layout and freeze the game so
@@ -157,7 +164,7 @@ static void game_event(TGE_Scene *scene, TGE_Event *event)
         return;
     if (tge_input_quit(event)) {
         if (game->world.state == SNAKE_OVER)
-            TGE_Quit(g_app);
+            TGE_Quit(ctx->app);
         return;
     }
     if (tge_input_confirm(event)) {
@@ -166,28 +173,33 @@ static void game_event(TGE_Scene *scene, TGE_Event *event)
         return;
     }
     if (tge_input_cancel(event))
-        TGE_PopScene(g_app);
+        TGE_PopScene(ctx->app);
 }
 
-static void game_update(TGE_Scene *scene, float delta_time)
+static void game_update(TGE_GameContext *ctx, float delta_time)
 {
-    SnakeGame *game = (SnakeGame *)scene->userdata;
+    SnakeGame *game = (SnakeGame *)tge_game_instance(ctx);
     world_update(&game->world, delta_time);
 }
 
-static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas)
 {
-    SnakeGame *game = (SnakeGame *)scene->userdata;
+    SnakeGame *game = (SnakeGame *)tge_game_instance(ctx);
     game_layout(game, tge_canvas_width(canvas), tge_canvas_height(canvas));
     renderer_draw(&game->renderer, canvas, &game->world);
 }
 
 /* Free the body array (growable) allocated by world_resize(). */
-static void game_destroy(TGE_Scene *scene)
+static void game_destroy(TGE_GameContext *ctx)
 {
-    SnakeGame *game = (SnakeGame *)scene->userdata;
+    SnakeGame *game = (SnakeGame *)tge_game_instance(ctx);
     free(game->world.body);
 }
+
+/* The snake's interface, handed to tge_game_scene_create(). */
+static const TGE_GameCallbacks snake_callbacks = {
+    game_update, game_draw, game_event, game_destroy,
+};
 
 static void init_app(TGE_App *app)
 {
@@ -569,9 +581,8 @@ static void title_event(TGE_Scene *scene, TGE_Event *event)
         /* ENTER creates the game scene (heap-allocated, owned by the app once
          * pushed) on top of the title. */
         TGE_Scene *game_scene = NULL;
-        SnakeGame *game = (SnakeGame *)tge_scene_create(
-            &game_scene, sizeof(SnakeGame), game_update, game_draw,
-            game_event, game_destroy);
+        SnakeGame *game = (SnakeGame *)tge_game_scene_create(
+            g_app, &game_scene, sizeof(SnakeGame), &snake_callbacks);
         game->renderer.theme = &SNAKE_THEME;
         /* Configure the renderer geometry once; renderer_begin() re-applies
          * it every frame against the current canvas. */

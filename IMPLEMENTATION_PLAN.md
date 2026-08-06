@@ -1154,6 +1154,9 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Revisión 4: `tge-extra/view` pasa a ser dueño del espacio local del juego: `tge_view_translate` (local→superficie), `tge_view_contains` (dentro del interior), `tge_view_random_point` (spawn) y `tge_view_local_bounds` (rect local para el clamp), con tests; delegan en las primitivas de `vec2i` (sin getters, ADR-007)
 - [x] Revisión 4: `tge_grid_view_*_local` (`set_cell_local`, `put_local`, `put_attr_local`) — dibujo directo en coordenadas locales del view, con tests; adoptados por 06/07
 - [x] Revisión 4: 01/06/07 migrados a la API de espacio local; `world_bounds()` desaparece de los snakes (era pegamento que repetía `rect(0,0,w,h)`)
+- [x] Revisión 5: `tge-extra/game` — capa adaptadora opcional sobre TGE_Scene (TGE_GameContext + TGE_GameCallbacks + `tge_game_scene_create`, trampolines que despachan a callbacks que nunca ven la escena); mata el cast `scene->userdata` y el global `g_app` dentro de los callbacks de juego, con tests (test_game) y ADR-027
+- [x] Revisión 5: `06_snake_grid` migrado al adapter (SnakeGame embebe `TGE_GameContext ctx` en offset 0; los callbacks reciben ctx); la escena título queda en `tge_scene_create` (prueba de que una escena no siempre es un juego)
+- [ ] Revisión 5 (Fase 2 de validación): migrar `07_breakout` y luego `03_tetris` al adapter; si 07 obliga a tocar la API, se ajusta antes de 03
 
 ---
 

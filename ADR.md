@@ -1000,6 +1000,52 @@ motores modernos.
 - El renderer puede recibir un canvas con cambios fuera del área visible
   (es responsabilidad del renderer no incluir esos cambios en el diff).
 
+## ADR-027: TGE_Game como capa adaptadora opcional
+
+**Decisión:** TGE_Scene sigue siendo la abstracción primitiva de escena.
+TGE_Game (tge-extra/game) es una capa adaptadora opcional para aplicaciones
+interactivas con estado ("juego", editor, demo, visualizador). El adapter no
+debe filtrarse al core.
+
+```c
+typedef struct {
+    TGE_GameContext ctx;   /* primer miembro: scene->userdata == &game->ctx */
+    SnakeWorld world;
+    SnakeRenderer renderer;
+} SnakeGame;
+
+static void game_update(TGE_GameContext *ctx, float dt)
+{
+    SnakeGame *game = (SnakeGame *)tge_game_instance(ctx);
+    world_update(&game->world, dt);
+}
+```
+
+**Racional:** El pegamento entre los callbacks de escena y el estado del juego
+se repetía en todos los juegos de ejemplo: el cast `scene->userdata` y el
+global `g_app` (necesario para `TGE_Quit`/`TGE_PopScene`). Esa capa existe de
+facto, solo que implícita y repetida. Hacerla explícita cambia la unidad de
+abstracción, no solo el código: el engine habla de escenas, el juego habla de
+`TGE_GameContext`, y nada mezcla responsabilidades.
+
+**Reglas:**
+- `TGE_GameContext` es el primer miembro del struct del juego (offset 0), para
+  que `scene->userdata == &game->ctx`. Romper esa regla falla silenciosamente:
+  es la única regla que no se negocia.
+- El adapter es opt-in: las escenas que no son juegos (título, overlays,
+  menús) y los juegos que necesitan control de escena usan `tge_scene_create`
+  directamente.
+- Los callbacks del juego reciben `TGE_GameContext *` y nunca ven la scene.
+- El adapter no administra memoria propia: todo pasa por `tge_scene_create`.
+
+**Consecuencias:**
+- `g_app` se reduce a los sitios de creación de escenas (init_app / título);
+  los callbacks del juego lo pierden.
+- Un juego puede correr desde otro sistema (test runner, replay, networking)
+  sin depender del concepto Scene.
+- Si el módulo no convence, borrar `tge-extra/game` no afecta al resto del
+  motor.
+
 *Fin del ADR. Decisiones vinculantes hasta que un nuevo ADR las modifique.
 Ninguna decisión es inmutable, pero cambiar un ADR requiere justificación
 explícita.*

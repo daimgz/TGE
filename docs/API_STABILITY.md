@@ -18,8 +18,8 @@ Cada módulo es independiente, usa solo la API pública de TGE y nunca
 
 Módulos actuales (experimentales): `entity`, `animation`, `collision`,
 `vec2i`, `direction`, `timer`, `fixedstep`, `input`, `grid`, `view`,
-`input_buffer`, `grid_view`. Los utilitarios (`vec2i`, `direction`, `timer`,
-`fixedstep`, `input`) se validan como consumidores de ejemplo
+`input_buffer`, `grid_view`, `game`. Los utilitarios (`vec2i`, `direction`,
+`timer`, `fixedstep`, `input`) se validan como consumidores de ejemplo
 `examples/games/01_snake.c` y `05_swarm.c`; `grid` (capa de dibujo por grilla
 con tema visual `TGE_GridTheme` y tiles `TGE_GridTile`) se valida en
 `examples/min/08_grid_canvas.c` y `examples/games/06_snake_grid.c`.
@@ -41,6 +41,18 @@ las primitivas de `vec2i`: `tge_vec2i_clamp_rect` (clamp a los límites de un
 rect, usado en el resize de los snakes), `tge_rect_random_point` (punto
 aleatorio en un rect, usado también por 05_swarm) y `tge_rect_translate_point`
 (mapeo local→global por el origen del rect).
+
+`game` (TGE_GameContext: capa adaptadora opcional encima de TGE_Scene) se
+valida en `examples/games/06_snake_grid.c` (ejemplo de referencia, migrado
+primero; `07_breakout` y `03_tetris` lo estresan después). El adapter es
+explícito, no una nueva abstracción: la escena cruda sigue siendo el mecanismo
+general (título, overlays, menús) y `game` solo elimina el pegamento repetido
+entre los callbacks de escena y el estado del juego (`g_app` + el cast
+`scene->userdata`). Cambia la unidad de abstracción: el engine habla de
+escenas, el juego habla de `TGE_GameContext`, y nada mezcla responsabilidades.
+El nombre `game` es deliberado (nombra su caso de uso inicial); si el adapter
+demuestra ser útil para aplicaciones con estado que no son juegos, el nombre
+del módulo puede revisarse antes de estabilizarse.
 
 ## Convención para agregar API
 
