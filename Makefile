@@ -63,14 +63,14 @@ check_headers: $(TARGET)
 		probe=$$(mktemp /tmp/tge_hdr_XXX.c); \
 		printf '#include <tge/%s>\nint main(void){return 0;}\n' "$$(basename $$h)" > $$probe; \
 		printf "  HC $$h\n"; \
-		$(CC) $(CFLAGS) $(INCLUDES) $$probe -o /dev/null || { rm -f $$probe; exit 1; }; \
+		$(CC) $(CFLAGS) $(INCLUDES) $$probe -fsyntax-only || { rm -f $$probe; exit 1; }; \
 		rm -f $$probe; \
 	done
 	@for h in tge-extra/*.h; do \
 		probe=$$(mktemp /tmp/tge_xhdr_XXX.c); \
 		printf '#include <tge-extra/%s>\nint main(void){return 0;}\n' "$$(basename $$h)" > $$probe; \
 		printf "  HC $$h\n"; \
-		$(CC) $(CFLAGS) $(INCLUDES) $$probe -o /dev/null || { rm -f $$probe; exit 1; }; \
+		$(CC) $(CFLAGS) $(INCLUDES) $$probe -fsyntax-only || { rm -f $$probe; exit 1; }; \
 		rm -f $$probe; \
 	done
 
