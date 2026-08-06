@@ -5,6 +5,7 @@
 *.exe
 
 # binaries
+compile_commands.json
 tests/test_unit
 tests/test_utf8
 tests/test_parser
@@ -48,3 +49,5 @@ examples/games/07_breakout
 tests/test_grid_view
 tests/test_input_buffer
 tests/test_view
+
+.cache/
