@@ -378,6 +378,11 @@ static void si_event(TGE_Scene *scene, TGE_Event *ev)
 {
     Invaders *t = (Invaders *)scene->userdata;
 
+    if (ev->type == TGE_EVENT_RESIZE) {
+        if (t->state != SI_OVER)
+            t->paused = true;
+        return;
+    }
     if (ev->type == TGE_EVENT_TEXT &&
         (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
         if (t->state != SI_OVER)

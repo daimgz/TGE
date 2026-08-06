@@ -274,8 +274,8 @@ static void reset(Tetris *t)
     t->level = 1;
     t->lines = 0;
     t->state = STATE_PLAYING;
-    t->next = rand() % 7;
     t->paused = false;
+    t->next = rand() % 7;
     tge_timer_init(&t->rot, ROTATE_DEBOUNCE);
     /* Preload the cooldown so the very first rotation after a reset is
      * immediate (the old `last_rotate = -ROTATE_DEBOUNCE` did the same). */
@@ -466,6 +466,8 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
 
     if (ev->type == TGE_EVENT_RESIZE) {
         tetris_resize(t, ev->data.resize.w, ev->data.resize.h);
+        if (t->state != STATE_OVER)
+            t->paused = true;
         return;
     }
     if (ev->type == TGE_EVENT_TEXT &&
@@ -521,7 +523,7 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         }
     } else if (ev->type == TGE_EVENT_TIMER &&
                ev->data.timer.id == TMR_GRAVITY) {
-        if (t->view.valid)
+        if (t->view.valid && !t->paused)
             gravity_step(t);
     }
 }

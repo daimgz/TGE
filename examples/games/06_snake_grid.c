@@ -358,6 +358,8 @@ static void game_event(TGE_Scene *scene, TGE_Event *event)
                                event->data.resize.h, &grid_width,
                                &grid_height);
         world_layout(&game->world, grid_width, grid_height);
+        if (game->world.state != SNAKE_OVER)
+            game->world.paused = true;
         return;
     }
     if (tge_input_pause(event)) {

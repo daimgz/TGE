@@ -533,6 +533,8 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         tge_grid_view_size_for(&g->renderer.view, ev->data.resize.w,
                                ev->data.resize.h, &gw, &gh);
         world_layout(&g->world, gw, gh);
+        if (g->world.state != BREAKOUT_OVER)
+            g->world.paused = true;
         return;
     }
     if (tge_input_pause(ev)) {

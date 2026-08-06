@@ -33,13 +33,19 @@ typedef struct {
     TGE_Vec2i food;
     int score;
     SnakeState state;
+    bool paused;
     TGE_FixedStep step;
     TGE_View view; /* playfield layout; view.area is the interior */
     int w, h;      /* last canvas size the view was computed for */
-    bool paused;
 } GameState;
 
 static TGE_App *g_app = NULL;
+
+static void snake_init(GameState *s)
+{
+    tge_view_init(&s->view, MIN_FW, MIN_FH);
+    tge_input_buffer_init(&s->input, DIR_QUEUE);
+}
 
 /* The world works in local coordinates (0..w-1, 0..h-1); the renderer is the
  * only one that maps them to the screen with tge_rect_translate_point().
@@ -48,12 +54,6 @@ static TGE_App *g_app = NULL;
 static TGE_Rect world_bounds(const GameState *s)
 {
     return tge_rect(0, 0, s->view.area.w, s->view.area.h);
-}
-
-static void snake_init(GameState *s)
-{
-    tge_view_init(&s->view, MIN_FW, MIN_FH);
-    tge_input_buffer_init(&s->input, DIR_QUEUE);
 }
 
 static bool spawn_food(GameState *s)
@@ -239,6 +239,8 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
 
     if (ev->type == TGE_EVENT_RESIZE) {
         snake_resize(s, ev->data.resize.w, ev->data.resize.h);
+        if (s->state != SNAKE_OVER)
+            s->paused = true;
         return;
     }
     if (tge_input_pause(ev)) {

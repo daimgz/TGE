@@ -487,6 +487,11 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
 {
     Game *g = (Game *)scene->userdata;
 
+    if (ev->type == TGE_EVENT_RESIZE) {
+        if (g->state != S_OVER)
+            g->paused = true;
+        return;
+    }
     if (ev->type == TGE_EVENT_TEXT &&
         (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
         if (g->state != S_OVER)

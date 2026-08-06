@@ -30,9 +30,9 @@ typedef struct {
     float speed;
     int score1, score2;
     PongState state;
+    bool paused;
     int countdown;
     int serve_dir;
-    bool paused;
     int cd_timer;
     float go_flash;
     Held p1, p2;
@@ -255,6 +255,11 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 static void game_event(TGE_Scene *scene, TGE_Event *ev)
 {
     Pong *g = (Pong *)scene->userdata;
+    if (ev->type == TGE_EVENT_RESIZE) {
+        if (g->state != STATE_OVER)
+            g->paused = true;
+        return;
+    }
     if (ev->type == TGE_EVENT_TEXT &&
         (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
         if (g->state != STATE_OVER)
