@@ -11,10 +11,10 @@
  *                    (tge_printf), and the playfield through a TGE_GridView
  *                    (theme, cell size, origin). The world is only read,
  *                    never changed.
- *   BreakoutGame     the whole game: the scene glue (TGE_App/Scene wiring)
- *                    that owns one BreakoutWorld + one BreakoutRenderer and
- *                    moves input into the world, resizes into world_layout
- *                    and draws through the renderer.
+ *   BreakoutGame     the whole game: the scene glue (a TGE_GameContext from
+ *                    tge-extra/game, first member) that owns one BreakoutWorld
+ *                    + one BreakoutRenderer, moves input into the world,
+ *                    resizes into world_layout and draws through the renderer.
  *
  * The playfield (logical LX x LY in grid cells) comes from the terminal size
  * through TGE_View, exactly like the snakes: the renderer maps a canvas to a
@@ -38,6 +38,7 @@
  */
 #include "tge/tge.h"
 
+#include "tge-extra/game.h"
 #include "tge-extra/grid.h"
 #include "tge-extra/grid_view.h"
 #include "tge-extra/input.h"
@@ -493,24 +494,28 @@ static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
 
 /* ---------------------------------------------------------------- scenes */
 
-/* The game as a whole: the world (rules) + the renderer (screen), wired
- * together by the scene callbacks. */
+/* The game as a whole: the scene glue (TGE_GameContext) + world + renderer,
+ * wired together by the game callbacks. */
 typedef struct {
+    TGE_GameContext ctx; /* first member: scene->userdata == &game->ctx */
     BreakoutWorld world;
     BreakoutRenderer renderer;
 } BreakoutGame;
 
+/* Only the title scene still talks directly to the app. Game scenes receive
+ * ctx->app through TGE_GameContext.
+ */
 static TGE_App *g_app = NULL;
 
-static void game_update(TGE_Scene *scene, float dt)
+static void game_update(TGE_GameContext *ctx, float dt)
 {
-    BreakoutGame *g = (BreakoutGame *)scene->userdata;
+    BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
     world_update(&g->world, dt);
 }
 
-static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas)
 {
-    BreakoutGame *g = (BreakoutGame *)scene->userdata;
+    BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
     int gw, gh;
@@ -520,9 +525,9 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     renderer_draw(&g->renderer, canvas, &g->world);
 }
 
-static void game_event(TGE_Scene *scene, TGE_Event *ev)
+static void game_event(TGE_GameContext *ctx, TGE_Event *ev)
 {
-    BreakoutGame *g = (BreakoutGame *)scene->userdata;
+    BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
 
     if (ev->type == TGE_EVENT_RESIZE) {
         int gw, gh;
@@ -553,7 +558,7 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
     }
     if (tge_input_quit(ev)) {
         if (g->world.state == BREAKOUT_OVER)
-            TGE_Quit(g_app);
+            TGE_Quit(ctx->app);
         return;
     }
     bool confirm = tge_input_confirm(ev);
@@ -568,15 +573,20 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
         return;
     }
     if (tge_input_cancel(ev)) {
-        TGE_PopScene(g_app);
+        TGE_PopScene(ctx->app);
     }
 }
 
-static void game_destroy(TGE_Scene *scene)
+static void game_destroy(TGE_GameContext *ctx)
 {
-    BreakoutGame *g = (BreakoutGame *)scene->userdata;
+    BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
     free(g->world.cells);
 }
+
+/* The breakout's interface, handed to tge_game_scene_create(). */
+static const TGE_GameCallbacks breakout_callbacks = {
+    game_update, game_draw, game_event, game_destroy,
+};
 
 static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
@@ -622,9 +632,8 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
     }
     if (tge_input_confirm(ev)) {
         TGE_Scene *game = NULL;
-        BreakoutGame *g = (BreakoutGame *)tge_scene_create(
-            &game, sizeof(BreakoutGame), game_update, game_draw, game_event,
-            game_destroy);
+        BreakoutGame *g = (BreakoutGame *)tge_game_scene_create(
+            g_app, &game, sizeof(BreakoutGame), &breakout_callbacks);
         g->renderer.theme = &BREAKOUT_THEME;
         tge_grid_view_init(&g->renderer.view, NULL, &BREAKOUT_THEME,
                            TGE_GRID_SCALE_2X1);
