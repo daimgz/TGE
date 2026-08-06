@@ -975,7 +975,8 @@ sprites renderizada sobre un `TGE_Grid`, pensada para niveles estilo
 Zelda/Pokémon/Pac-Man:
 `tge_tilemap_init(&map, 64, 64)`; `tge_tilemap_set(&map, 10, 5, &wall)`;
 `tge_tilemap_draw(&grid, &map)`. Sin malloc (capacidad fija) como el resto
-de tge-extra. Se implementará cuando se pida un juego que lo necesite.
+de tge-extra. Se implementará cuando se pida un juego que lo necesite
+(Pac-Man y Sokoban lo gatillan; ver Fase 3b del roadmap).
 
 ### Módulos utilitarios (Batch 2)
 

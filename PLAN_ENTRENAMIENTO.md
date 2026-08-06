@@ -826,6 +826,38 @@ app.run(PongScene())
 | D | Tetris | tilemap, input, rotación, líneas | ~150 |
 | E | Space Invaders | escenas, bullets, oleadas | ~200 |
 
+> Estado: A–E ya existen como `examples/games/01_snake` … `04_space_invaders`
+> (más `05_swarm`, `06_snake_grid`, `07_breakout`). Cada uno es la referencia
+> de un módulo: 01 → `view`/`fixedstep`/`input_buffer`, 03 → `grid`+`timer`+
+> `view`+`vec2i`, 05 → `entity`/`animation`/`collision`, 06 → `grid`/
+> `grid_view`, 07 → cuándo **no** usar `fixedstep`/`input_buffer`.
+
+### Fase 3b — Segunda tanda de juegos (validación de tge-extra)
+
+Los juegos de la primera tanda validaron el núcleo (runtime + canvas +
+scene). Esta segunda tanda valida los módulos de `tge-extra` y los patrones
+anotados en `IMPLEMENTATION_PLAN.md` (TileMap, `TGE_Playfield`, `TGE_Actor`,
+FOV). Se mantiene la regla: **el módulo se implementa cuando un juego lo
+pide, no antes.**
+
+| # | Juego | Valida / desbloquea | Por qué |
+|---|-------|--------------------|---------|
+| 08 | Pac-Man | `TGE_Playfield` + `TGE_Actor` + `TileMap` | El plan ya lo fija como el tercer juego del patrón Snake/Breakout: el patrón se encapsula recién cuando los 3 lo usen. Laberinto = tilemap, turnos encolados = `input_buffer`, fantasmas = actores con IA simple (chase/scatter). |
+| 09 | Sokoban | `TileMap` (niveles = tilemaps) | Lógica mínima (sin IA ni timers): solo grid + input + undo. Es la forma más barata de probar niveles data-driven y edición de mapa. |
+| 10 | Minesweeper | Mouse (botones, click derecho) + flood fill + RNG con seed | Primer juego que exige el mouse en serio (revelar/marcar). Flood fill BFS sobre grid y generación determinista con seed. |
+| 11 | Roguelike (dungeon crawl) | `tge-extra/fov` (shadowcasting) → pathfinding → noise | Es el destino declarado de la filosofía del motor. Procedural, permadeath, por turnos. Gatillo de los tres módulos grandes de extensión. |
+| 12 | Bomberman | Scheduler + Playfield juntos | Primera mezcla de grid por turnos (movimiento) con temporizadores en tiempo real (bombas con explosión retardada). Valida scheduler + actores + powerups. |
+| 13 | Tower Defense | Escala de entidades + A* (camino) | Muchas entidades en lista plana (stress de draw), enemigos que siguen un camino (pathfinding), oleadas con scheduler. |
+| 14 | Conecta 4 vs CPU | Primera IA (minimax) → `tge-extra/ai` | Turn-based y sin timers; una IA minimax entra en <100 líneas. Cimiento de `tge-extra/ai` antes del roguelike. |
+| 15 | 2048 | Swipe → dirección + merge sobre grid | Ejercita el mapeo input→dirección (ya usado en Snake) más lógica de merge y score; corto y barato. |
+| 16 | Snake battle 2P | Múltiples fuentes de input en un mundo | Dos jugadores en un `fixedstep` compartido valida que `input_buffer` y el mundo no asuman un solo input. |
+| 17 | Sudoku | Grid de 9×9 + teclado numérico + backtracking | Validación de resolución recursiva (backtracking) sobre el grid, entrada por teclas de número, y generación de puzzles con seed y dificultad. Turn-based, sin timers ni mouse: depende de la lógica, no del render. |
+| 18 | Laberintos (generador + solver) | `tge-extra/pathfinding` + generación procedural | Generación con recursive backtracker o Prim, y resolución con A*/DFS. Es el antecesor directo del roguelike (FOV ya no basta: el solver valida pathfinding en grid arbitrario). |
+
+> **Stretch:** Zelda-like top-down — combina tilemap, FOV, cámara follow
+> (`TGE_Camera` del plan) y colisión por grid. Es el juego "resumen": toca
+> casi todo el motor a la vez.
+
 ### Fase 4 — Extensiones opcionales
 
 | # | Módulo | Contenido |
