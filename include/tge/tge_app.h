@@ -27,6 +27,9 @@ typedef void (*tge_event_fn)(TGE_App *app, TGE_Event *ev);
  * that size is used instead. Applications should adapt their rendering to
  * the canvas size they receive in draw() and resize events. */
 TGE_App *TGE_Create(int width, int height, const char *title);
+/* Frees the application. Destroys any heap-managed scenes still present on
+ * the scene stack before releasing the runtime (see tge_scene_create for the
+ * ownership contract); scenes built manually are the caller's responsibility. */
 void     TGE_Destroy(TGE_App *app);
 /* Runs the main loop, calling the given callbacks each frame, until
  * TGE_Quit is called or the terminal sends QUIT. */

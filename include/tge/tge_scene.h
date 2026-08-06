@@ -47,7 +47,13 @@ void TGE_ReplaceScene(TGE_App *app, TGE_Scene *scene);
  * userdata pointer (NULL when `userdata_size` is 0); the scene is stored in
  * *out. The `destroy` callback only frees deeper resources (the block itself
  * is owned by the scene). Hand this scene to TGE_PushScene/TGE_ReplaceScene
- * or to tge_scene_destroy; either path frees everything. */
+ * or to tge_scene_destroy; either path frees everything.
+ *
+ * Ownership: while a scene is on the app's stack the app owns it. Pushing a
+ * scene hands the ownership to the app. TGE_PopScene and TGE_ReplaceScene
+ * destroy the scene they remove, and TGE_Destroy destroys any scene still on
+ * the stack. Scenes built manually (destroy == NULL) are never freed by the
+ * engine and remain the caller's responsibility. */
 void *tge_scene_create(TGE_Scene **out, size_t userdata_size,
                        tge_scene_update_fn update, tge_scene_draw_fn draw,
                        tge_scene_event_fn event, tge_scene_destroy_fn destroy);

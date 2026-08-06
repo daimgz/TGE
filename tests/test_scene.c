@@ -152,6 +152,23 @@ TGE_TEST(scene_create_pop_frees)
     TGE_Destroy(app);
 }
 
+TGE_TEST(teardown_destroys_remaining_scenes)
+{
+    MockData *m;
+    TGE_App *app = make_test_app(&m);
+    TGE_Scene *sc = NULL;
+    Rec *r = (Rec *)tge_scene_create(&sc, sizeof(Rec), sc_update, sc_draw,
+                                     sc_event, created_destroy);
+    r->id = 7;
+    g_created_destroys = 0;
+    TGE_PushScene(app, sc);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(app->scene_count == 1, "pushed");
+
+    TGE_Destroy(app);
+    TGE_ASSERT(g_created_destroys == 1, "app destroy frees remaining scenes");
+}
+
 TGE_TEST(scene_create_null_out)
 {
     TGE_ASSERT(tge_scene_create(NULL, 4, NULL, NULL, NULL, NULL) == NULL,
@@ -410,6 +427,7 @@ int main(void)
     test_scene_create_wires_and_destroys();
     test_scene_create_zero_userdata();
     test_scene_create_pop_frees();
+    test_teardown_destroys_remaining_scenes();
     test_scene_create_null_out();
     test_destroy_called_on_pop_and_replace();
     test_top_scene_updated_and_drawn();

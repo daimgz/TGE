@@ -88,8 +88,6 @@ typedef struct {
 } DrawCtx;
 
 static TGE_App *g_app = NULL;
-static TGE_Scene *g_title = NULL;
-static TGE_Scene *g_game = NULL;
 
 static void kill_entity(Game *g, TGE_EntityId id)
 {
@@ -521,7 +519,6 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
                 game_reset(g);
             break;
         case TGE_KEY_ESC:
-            g_game = NULL;
             TGE_PopScene(g_app);
             break;
         default:
@@ -599,7 +596,6 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
         Game *g = (Game *)tge_scene_create(&game, sizeof(Game), game_update,
                                            game_draw, game_event, game_destroy);
         game_reset(g);
-        g_game = game;
         TGE_PushScene(g_app, game);
     }
 }
@@ -610,7 +606,6 @@ static void init_app(TGE_App *app)
     TGE_Scene *title = NULL;
     tge_scene_create(&title, 0, NULL, title_draw, title_event, NULL);
     title->opaque = false;
-    g_title = title;
     TGE_PushScene(app, title);
 }
 
@@ -620,8 +615,6 @@ int main(void)
     if (!app)
         return 1;
     TGE_Run(app, init_app, NULL, NULL, NULL);
-    tge_scene_destroy(g_game);
-    tge_scene_destroy(g_title);
     TGE_Destroy(app);
     return 0;
 }

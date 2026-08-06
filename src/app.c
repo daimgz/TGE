@@ -189,6 +189,15 @@ void tge_app_destroy(TGE_App *app)
 {
     if (!app)
         return;
+    /* Destroy any heap-managed scenes still on the stack: the app owns them
+     * while they are pushed, so at shutdown it must release them. Done before
+     * freeing the runtime so destroy() callbacks may still use the app. */
+    for (int i = app->scene_count - 1; i >= 0; --i) {
+        TGE_Scene *scene = app->scenes[i];
+        if (scene->destroy)
+            scene->destroy(scene);
+    }
+    app->scene_count = 0;
     tge_diff_free(&app->diff);
     if (app->current)
         tge_canvas_destroy(app->current);
