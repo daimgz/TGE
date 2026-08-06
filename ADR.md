@@ -904,6 +904,10 @@ filas 0..23).
 - El sistema de coordenadas es el mismo para canvas, escenas y sprites.
 - No existe el concepto de "coordenadas de mundo" vs "coordenadas de
   pantalla". Todo es absoluto (ADR-004: no hay transform tree).
+- `tge-extra/view.h` ofrece un espacio local por juego: el playfield piensa en
+  coordenadas 0-origen (0..w-1, 0..h-1) y `tge_view_translate()` las mapea a
+  la superficie sumando el origen del `area` (un desplazamiento puro, no un
+  árbol de transformaciones). El core sigue siendo absoluto.
 
 ---
 

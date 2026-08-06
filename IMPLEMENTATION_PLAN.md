@@ -1151,6 +1151,9 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Revisión 3: `tge_draw_centered_text()` en el core — texto centrado midiendo ancho real (wide chars cuentan doble), con tests; reemplaza `(w - strlen)/2` en todos los juegos (queda solo el puntaje derecho de Pong, que es alineación derecha)
 - [x] Revisión 3: `tge_scene_create()`/`tge_scene_destroy()` en el core — escena + userdata en un solo alloc con trampoline de destroy; elimina `calloc`/wiring/`cleanup_scene` en 01/05/06 (resuelve el punto 1 de Pendiente/Diferido)
 - [x] Revisión 3: helpers de punto en tge-extra (`vec2i`): `tge_vec2i_clamp_rect` (clamp post-resize de los snakes), `tge_rect_random_point` (spawn de comida/oleadas) y `tge_rect_translate_point` (mapeo local→global al dibujar), con tests
+- [x] Revisión 4: `tge-extra/view` pasa a ser dueño del espacio local del juego: `tge_view_translate` (local→superficie), `tge_view_contains` (dentro del interior), `tge_view_random_point` (spawn) y `tge_view_local_bounds` (rect local para el clamp), con tests; delegan en las primitivas de `vec2i` (sin getters, ADR-007)
+- [x] Revisión 4: `tge_grid_view_*_local` (`set_cell_local`, `put_local`, `put_attr_local`) — dibujo directo en coordenadas locales del view, con tests; adoptados por 06/07
+- [x] Revisión 4: 01/06/07 migrados a la API de espacio local; `world_bounds()` desaparece de los snakes (era pegamento que repetía `rect(0,0,w,h)`)
 
 ---
 

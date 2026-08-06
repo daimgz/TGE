@@ -25,17 +25,22 @@ con tema visual `TGE_GridTheme` y tiles `TGE_GridTile`) se valida en
 `examples/min/08_grid_canvas.c` y `examples/games/06_snake_grid.c`.
 
 Los módulos de layout y entrada — `view` (TGE_View: playfield adaptativo con
-tamaño mínimo, validez y primer layout), `input_buffer` (TGE_InputBuffer: FIFO
-de direcciones, drop-new) y `grid_view` (TGE_GridView: wrapper de
-configuración sobre TGE_Grid) — se validan como consumidores de ejemplo en
-`examples/games/01_snake.c` (`view` + `input_buffer`) y
-`examples/games/06_snake_grid.c` (`view` + `input_buffer` + `grid_view`),
-que es el ejemplo de referencia de la arquitectura world/renderer.
+tamaño mínimo, validez y primer layout, dueño del espacio local del juego),
+`input_buffer` (TGE_InputBuffer: FIFO de direcciones, drop-new) y `grid_view`
+(TGE_GridView: wrapper de configuración sobre TGE_Grid, con variantes `_local`
+que dibujan en coordenadas locales del view) — se validan como consumidores de
+ejemplo en `examples/games/01_snake.c` (`view` + `input_buffer`),
+`examples/games/06_snake_grid.c` (`view` + `input_buffer` + `grid_view`,
+ejemplo de referencia de la arquitectura world/renderer) y
+`examples/games/07_breakout.c` (`view` + `grid_view`).
 
-Helpers de punto en `vec2i` (candidatos): `tge_vec2i_clamp_rect` (clamp a los
-límites inclusivos de un rect, usado en el resize de los snakes),
-`tge_rect_random_point` (punto aleatorio en un rect) y
-`tge_rect_translate_point` (mapeo local→global por el origen del rect).
+Operaciones sobre el espacio local del view (candidatas): `tge_view_translate`
+(local→superficie por el origen del área), `tge_view_contains` (dentro del
+interior half-open) y `tge_view_random_point` (spawn aleatorio). Delegan en
+las primitivas de `vec2i`: `tge_vec2i_clamp_rect` (clamp a los límites de un
+rect, usado en el resize de los snakes), `tge_rect_random_point` (punto
+aleatorio en un rect, usado también por 05_swarm) y `tge_rect_translate_point`
+(mapeo local→global por el origen del rect).
 
 ## Convención para agregar API
 
