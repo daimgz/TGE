@@ -33,3 +33,31 @@ TGE_ViewUpdate tge_view_update(TGE_View *view, int width, int height)
     }
     return TGE_VIEW_RESIZED;
 }
+
+TGE_Vec2i tge_view_translate(const TGE_View *view, TGE_Vec2i local)
+{
+    if (!view)
+        return tge_vec2i_zero();
+    return tge_rect_translate_point(view->area, local);
+}
+
+bool tge_view_contains(const TGE_View *view, TGE_Vec2i p)
+{
+    if (!view)
+        return false;
+    return p.x >= 0 && p.x < view->area.w && p.y >= 0 && p.y < view->area.h;
+}
+
+TGE_Vec2i tge_view_random_point(const TGE_View *view)
+{
+    if (!view)
+        return tge_vec2i_zero();
+    return tge_rect_random_point(tge_view_local_bounds(view));
+}
+
+TGE_Rect tge_view_local_bounds(const TGE_View *view)
+{
+    if (!view)
+        return tge_rect(0, 0, 0, 0);
+    return tge_rect(0, 0, view->area.w, view->area.h);
+}
