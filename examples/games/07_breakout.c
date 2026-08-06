@@ -449,27 +449,23 @@ static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
         for (int lx = 0; lx < w->view.area.w; lx++) {
             if (!w->cells[ly * w->view.area.w + lx])
                 continue;
-            TGE_Vec2i gp = tge_rect_translate_point(w->view.area,
-                                                    tge_vec2i(lx, ly));
-            tge_grid_view_set_cell(&r->view, gp.x, gp.y, brick_color(ly),
-                                   TGE_COLOR_BLACK);
+            tge_grid_view_set_cell_local(&r->view, &w->view,
+                                         tge_vec2i(lx, ly), brick_color(ly),
+                                         TGE_COLOR_BLACK);
         }
     }
 
     int py = world_paddle_y(w);
     int px0 = (int)(w->px - PADDLE_W / 2.0f);
-    for (int i = 0; i < PADDLE_W; i++) {
-        TGE_Vec2i gp =
-            tge_rect_translate_point(w->view.area, tge_vec2i(px0 + i, py));
-        tge_grid_view_put(&r->view, gp.x, gp.y, &SPR_PADDLE, TGE_COLOR_GREEN,
-                          TGE_COLOR_BLACK);
-    }
+    for (int i = 0; i < PADDLE_W; i++)
+        tge_grid_view_put_local(&r->view, &w->view,
+                                tge_vec2i(px0 + i, py), &SPR_PADDLE,
+                                TGE_COLOR_GREEN, TGE_COLOR_BLACK);
 
     if (w->state != BREAKOUT_OVER) {
-        TGE_Vec2i gp = tge_rect_translate_point(
-            w->view.area, tge_vec2i((int)w->bx, (int)w->by));
-        tge_grid_view_put(&r->view, gp.x, gp.y, &SPR_BALL, TGE_COLOR_WHITE,
-                          TGE_COLOR_BLACK);
+        tge_grid_view_put_local(&r->view, &w->view,
+                                tge_vec2i((int)w->bx, (int)w->by), &SPR_BALL,
+                                TGE_COLOR_WHITE, TGE_COLOR_BLACK);
     }
 
     if (w->state == BREAKOUT_OVER) {

@@ -15,7 +15,7 @@
  * view insets the playfield by one cell (the frame margin; the HUD row
  * overlaps the top border), reports validity (too small to play) and the
  * first valid layout; the snake logic only knows local coordinates and
- * drawing maps them with view.area. Queued turns go through a
+ * drawing maps them with tge_view_translate(). Queued turns go through a
  * TGE_InputBuffer so fast input between steps is not lost. */
 #define MIN_FW 10 /* minimum playfield cols (canvas >= 12 wide) */
 #define MIN_FH 6  /* minimum playfield rows (canvas >= 8 tall)  */
@@ -47,21 +47,12 @@ static void snake_init(GameState *s)
     tge_input_buffer_init(&s->input, DIR_QUEUE);
 }
 
-/* The world works in local coordinates (0..w-1, 0..h-1); the renderer is the
- * only one that maps them to the screen with tge_rect_translate_point().
- * view.area is that mapping's screen offset, so this returns the world's own
- * 0-origin bounds. */
-static TGE_Rect world_bounds(const GameState *s)
-{
-    return tge_rect(0, 0, s->view.area.w, s->view.area.h);
-}
-
 static bool spawn_food(GameState *s)
 {
     if (s->view.area.w * s->view.area.h - s->len <= 0)
         return false;
     for (;;) {
-        TGE_Vec2i p = tge_rect_random_point(world_bounds(s));
+        TGE_Vec2i p = tge_view_random_point(&s->view);
         bool free_spot = true;
         for (int i = 0; i < s->len; i++) {
             if (tge_vec2i_eq(s->body[i], p)) {
@@ -123,8 +114,9 @@ static void snake_resize(GameState *s, int w, int h)
         break;
     case TGE_VIEW_RESIZED:
         for (int i = 0; i < s->len; i++)
-            s->body[i] = tge_vec2i_clamp_rect(s->body[i], world_bounds(s));
-        if (s->food.x >= s->view.area.w || s->food.y >= s->view.area.h) {
+            s->body[i] =
+                tge_vec2i_clamp_rect(s->body[i], tge_view_local_bounds(&s->view));
+        if (!tge_view_contains(&s->view, s->food)) {
             if (!spawn_food(s))
                 s->state = SNAKE_OVER;
         }
@@ -147,8 +139,8 @@ static bool snake_step(GameState *s)
 
     TGE_Vec2i nh = tge_vec2i_add(s->body[0], tge_direction_vec(s->dir));
 
-    if (nh.x < 0 || nh.x >= s->view.area.w || nh.y < 0 ||
-        nh.y >= s->view.area.h)
+    /* Hitting the playfield wall ends the game. */
+    if (!tge_view_contains(&s->view, nh))
         return false;
 
     bool ate = tge_vec2i_eq(nh, s->food);
@@ -206,11 +198,11 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     }
 
     for (int i = 0; i < s->len; i++) {
-        TGE_Vec2i gp = tge_rect_translate_point(s->view.area, s->body[i]);
+        TGE_Vec2i gp = tge_view_translate(&s->view, s->body[i]);
         tge_set_cell(canvas, gp.x, gp.y, (i == 0) ? '@' : 'o',
                      TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     }
-    TGE_Vec2i fp = tge_rect_translate_point(s->view.area, s->food);
+    TGE_Vec2i fp = tge_view_translate(&s->view, s->food);
     tge_set_cell(canvas, fp.x, fp.y, '*', TGE_COLOR_RED, TGE_COLOR_BLACK);
 
     if (s->state == SNAKE_OVER) {

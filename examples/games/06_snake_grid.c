@@ -245,15 +245,9 @@ static void world_init(SnakeWorld *world)
     tge_input_buffer_init(&world->input, DIRECTION_QUEUE_SIZE);
 }
 
-/* The world works in local coordinates (0..w-1, 0..h-1); the renderer is the
- * only one that maps them to the screen with tge_rect_translate_point().
- * view.area is that mapping's screen offset, so this returns the world's own
- * 0-origin bounds. */
-static TGE_Rect world_bounds(const SnakeWorld *world)
-{
-    return tge_rect(0, 0, world->view.area.w, world->view.area.h);
-}
-
+/* The world works in local coordinates (0..w-1, 0..h-1); the view is the
+ * owner of that space (translate / contains / random_point) and the renderer
+ * draws with the grid_view _local helpers. */
 static bool world_spawn_food(SnakeWorld *world)
 {
     /* If the playfield is full of snake there is nowhere to put the food. */
@@ -261,7 +255,7 @@ static bool world_spawn_food(SnakeWorld *world)
         return false;
     for (;;) {
         /* Pick a random cell inside the playfield... */
-        TGE_Vec2i candidate = tge_rect_random_point(world_bounds(world));
+        TGE_Vec2i candidate = tge_view_random_point(&world->view);
         bool free_spot = true;
         /* ...and retry until it does not overlap the snake. */
         for (int i = 0; i < world->body_length; i++) {
@@ -316,8 +310,7 @@ static bool world_step(SnakeWorld *world)
         tge_vec2i_add(world->body[0], tge_direction_vec(world->direction));
 
     /* ...hitting the playfield wall ends the game. */
-    if (next_head.x < 0 || next_head.x >= world->view.area.w ||
-        next_head.y < 0 || next_head.y >= world->view.area.h)
+    if (!tge_view_contains(&world->view, next_head))
         return false;
 
     /* Hitting the body ends the game too. When eating, the tail moves forward
@@ -388,11 +381,10 @@ static void world_resize(SnakeWorld *world, int grid_width, int grid_height)
     case TGE_VIEW_RESIZED:
         /* Resize while playing: clamp the snake into the new bounds... */
         for (int i = 0; i < world->body_length; i++)
-            world->body[i] =
-                tge_vec2i_clamp_rect(world->body[i], world_bounds(world));
+            world->body[i] = tge_vec2i_clamp_rect(
+                world->body[i], tge_view_local_bounds(&world->view));
         /* ...and respawn the food if it ended up outside the playfield. */
-        if (world->food.x >= world->view.area.w ||
-            world->food.y >= world->view.area.h) {
+        if (!tge_view_contains(&world->view, world->food)) {
             if (!world_spawn_food(world))
                 world->state = SNAKE_OVER;
         }
@@ -489,29 +481,23 @@ static void draw_playfield(SnakeRenderer *renderer, TGE_Canvas *canvas,
 
 static void draw_snake(SnakeRenderer *renderer, const SnakeWorld *world)
 {
-    /* The world stores logical coordinates; translate each body cell to its
-     * grid position (offset by world_bounds) before drawing. */
-    for (int i = 1; i < world->body_length; i++) {
-        TGE_Vec2i grid_point =
-            tge_rect_translate_point(world->view.area, world->body[i]);
-        tge_grid_view_set_cell(&renderer->view, grid_point.x, grid_point.y,
-                               TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-    }
+    /* Each body cell is a local playfield coordinate; the _local helpers
+     * translate them through the view before drawing. */
+    for (int i = 1; i < world->body_length; i++)
+        tge_grid_view_set_cell_local(&renderer->view, &world->view,
+                                     world->body[i], TGE_COLOR_GREEN,
+                                     TGE_COLOR_BLACK);
     /* The head is a solid block so the player can tell it apart. */
-    TGE_Vec2i head_point =
-        tge_rect_translate_point(world->view.area, world->body[0]);
-    tge_grid_view_put(&renderer->view, head_point.x, head_point.y,
-                      &SPRITE_HEAD, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_view_put_local(&renderer->view, &world->view, world->body[0],
+                            &SPRITE_HEAD, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
 }
 
 static void draw_food(SnakeRenderer *renderer, const SnakeWorld *world)
 {
     /* The food uses bold to stand out from the body. */
-    TGE_Vec2i food_point =
-        tge_rect_translate_point(world->view.area, world->food);
-    tge_grid_view_put_attr(&renderer->view, food_point.x, food_point.y,
-                           &SPRITE_FOOD, TGE_COLOR_RED, TGE_COLOR_BLACK,
-                           TGE_CELL_ATTR_BOLD);
+    tge_grid_view_put_attr_local(&renderer->view, &world->view, world->food,
+                                 &SPRITE_FOOD, TGE_COLOR_RED, TGE_COLOR_BLACK,
+                                 TGE_CELL_ATTR_BOLD);
 }
 
 static void draw_overlay(TGE_Canvas *canvas, const SnakeWorld *world)
