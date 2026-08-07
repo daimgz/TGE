@@ -36,7 +36,7 @@ make games
 ```
 
 Games: `01_snake`, `02_pong`, `03_tetris`, `04_space_invaders`, `05_swarm`,
-`06_snake_grid`, `07_breakout`. `06_snake_grid` is the reference example of
+`06_snake_grid`, `07_breakout`, `08_geometry_dash`. `06_snake_grid` is the reference example of
 the game architecture (world / renderer split over `TGE_Game`); `01_snake` is
 its minimal counterpart, written directly on the scene API.
 
