@@ -18,7 +18,8 @@ static bool cell_is(const TGE_Canvas *c, int x, int y, uint32_t ch)
 {
     TGE_Canvas *c = tge_canvas_create(40, 20);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
+    tge_grid_view_attach(&v, c);
     TGE_ASSERT(v.grid.cell_w == 1 && v.grid.cell_h == 1, "1x1 cell size");
     TGE_ASSERT(v.grid.ox == 0 && v.grid.oy == 0, "origin 0,0");
     TGE_ASSERT(v.grid.theme == &TGE_GRID_THEME_BLOCKS, "theme set");
@@ -32,18 +33,40 @@ TGE_TEST(init_2x1)
 {
     TGE_Canvas *c = tge_canvas_create(40, 20);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     TGE_ASSERT(v.grid.cell_w == 2 && v.grid.cell_h == 1, "2x1 cell size");
     TGE_ASSERT(tge_grid_view_width(&v) == 20, "40/2 cols");
     TGE_ASSERT(tge_grid_view_height(&v) == 20, "20/1 rows");
     tge_canvas_destroy(c);
 }
 
+TGE_TEST(attach_repoints_canvas)
+{
+    /* init() is the persistent configuration; attach() only re-points the
+     * canvas (the app swaps its double buffers every frame). */
+    TGE_Canvas *c1 = tge_canvas_create(40, 20);
+    TGE_Canvas *c2 = tge_canvas_create(80, 24);
+    TGE_GridView v;
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c1);
+    TGE_ASSERT(v.grid.canvas == c1, "first attach");
+    TGE_ASSERT(tge_grid_view_width(&v) == 20, "40x20 -> 20 cols");
+    tge_grid_view_attach(&v, c2);
+    TGE_ASSERT(v.grid.canvas == c2, "re-attach moves the canvas");
+    TGE_ASSERT(tge_grid_view_width(&v) == 40, "80x24 -> 40 cols");
+    TGE_ASSERT(v.grid.cell_w == 2 && v.grid.cell_h == 1, "config persists");
+    TGE_ASSERT(v.grid.theme == &TGE_GRID_THEME_BLOCKS, "theme persists");
+    tge_canvas_destroy(c1);
+    tge_canvas_destroy(c2);
+}
+
 TGE_TEST(null_theme_falls_back_to_blocks)
 {
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, NULL, TGE_GRID_SCALE_1X1);
+    tge_grid_view_init(&v, NULL, TGE_GRID_SCALE_1X1);
+    tge_grid_view_attach(&v, c);
     TGE_ASSERT(v.grid.theme == &TGE_GRID_THEME_BLOCKS, "NULL theme -> BLOCKS");
     tge_canvas_destroy(c);
 }
@@ -52,7 +75,8 @@ TGE_TEST(width_height_adapts_to_resize)
 {
     TGE_Canvas *c = tge_canvas_create(40, 20);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     TGE_ASSERT(tge_grid_view_width(&v) == 20, "40x20 -> 20 cols");
     tge_canvas_resize(c, 80, 38);
     TGE_ASSERT(tge_grid_view_width(&v) == 40, "resized -> 40 cols");
@@ -64,7 +88,8 @@ TGE_TEST(origin_shrinks_view)
 {
     TGE_Canvas *c = tge_canvas_create(40, 20);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     tge_grid_set_origin(&v.grid, 10, 5);
     TGE_ASSERT(tge_grid_view_width(&v) == 15, "(40-10)/2");
     TGE_ASSERT(tge_grid_view_height(&v) == 15, "(20-5)/1");
@@ -75,7 +100,8 @@ TGE_TEST(size_for_matches_canvas_dims)
 {
     TGE_Canvas *c = tge_canvas_create(80, 24);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     int gw, gh;
     tge_grid_view_size_for(&v, 80, 24, &gw, &gh);
     TGE_ASSERT(gw == tge_grid_view_width(&v) &&
@@ -89,7 +115,7 @@ TGE_TEST(size_for_matches_canvas_dims)
 TGE_TEST(size_for_with_origin_and_no_canvas)
 {
     TGE_GridView v;
-    tge_grid_view_init(&v, NULL, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
     tge_grid_set_origin(&v.grid, 0, 1);
     int gw, gh;
     tge_grid_view_size_for(&v, 80, 24, &gw, &gh);
@@ -101,7 +127,7 @@ TGE_TEST(size_for_with_origin_and_no_canvas)
 TGE_TEST(size_for_null_safety)
 {
     TGE_GridView v;
-    tge_grid_view_init(&v, NULL, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
     int gw = -1, gh = -1;
     tge_grid_view_size_for(NULL, 80, 24, &gw, &gh);
     TGE_ASSERT(gw == -1 && gh == -1, "NULL view leaves outputs");
@@ -111,11 +137,96 @@ TGE_TEST(size_for_null_safety)
     TGE_ASSERT(gw == -1, "NULL gh leaves gw");
 }
 
+typedef struct {
+    int calls;
+    int last_w;
+    int last_h;
+    void *userdata_seen;
+} ResizeRecorder;
+
+static void record_resize(void *userdata, int gw, int gh)
+{
+    ResizeRecorder *r = (ResizeRecorder *)userdata;
+    r->calls++;
+    r->last_w = gw;
+    r->last_h = gh;
+    r->userdata_seen = userdata;
+}
+
+TGE_TEST(grid_layout_init_binds_view)
+{
+    TGE_GridView v;
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_GridLayout layout;
+    tge_grid_layout_init(&layout, &v);
+    TGE_ASSERT(layout.view == &v, "view bound");
+    TGE_ASSERT(layout.cached_width == 0 && layout.cached_height == 0,
+               "cache starts empty so the first sync fires");
+}
+
+TGE_TEST(grid_layout_sync_fires_on_change_only)
+{
+    TGE_GridView v;
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_GridLayout layout;
+    tge_grid_layout_init(&layout, &v);
+    ResizeRecorder r = {0, 0, 0, NULL};
+
+    TGE_ASSERT(tge_grid_layout_sync(&layout, 40, 20, record_resize, &r),
+               "first sync reports a resize");
+    TGE_ASSERT(r.calls == 1 && r.last_w == 20 && r.last_h == 20,
+               "40x20 -> 20x20 grid cells at 2x1");
+    TGE_ASSERT(r.userdata_seen == &r, "userdata forwarded");
+
+    TGE_ASSERT(!tge_grid_layout_sync(&layout, 40, 20, record_resize, &r),
+               "unchanged surface is a no-op");
+    TGE_ASSERT(r.calls == 1, "no callback on unchanged");
+
+    TGE_ASSERT(tge_grid_layout_sync(&layout, 80, 20, record_resize, &r),
+               "grow reports a resize");
+    TGE_ASSERT(r.calls == 2 && r.last_w == 40 && r.last_h == 20,
+               "80x20 -> 40x20 grid cells");
+}
+
+TGE_TEST(grid_layout_sync_honors_origin_and_cache)
+{
+    TGE_GridView v;
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_set_origin(&v.grid, 0, 1); /* HUD row on top */
+    TGE_GridLayout layout;
+    tge_grid_layout_init(&layout, &v);
+    ResizeRecorder r = {0, 0, 0, NULL};
+
+    tge_grid_layout_sync(&layout, 80, 24, record_resize, &r);
+    TGE_ASSERT(r.last_w == 40 && r.last_h == 23, "origin folds into the size");
+
+    tge_grid_layout_sync(&layout, 80, 24, record_resize, &r);
+    TGE_ASSERT(r.calls == 1, "cache persists across syncs");
+}
+
+TGE_TEST(grid_layout_null_safety)
+{
+    TGE_GridView v;
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    TGE_GridLayout layout;
+    tge_grid_layout_init(&layout, &v);
+    ResizeRecorder r = {0, 0, 0, NULL};
+    TGE_ASSERT(!tge_grid_layout_sync(NULL, 40, 20, record_resize, &r),
+               "NULL layout no-ops");
+    TGE_ASSERT(r.calls == 0, "no callback from NULL layout");
+
+    layout.view = NULL;
+    TGE_ASSERT(!tge_grid_layout_sync(&layout, 40, 20, record_resize, &r),
+               "NULL view no-ops");
+    TGE_ASSERT(r.calls == 0, "no callback from NULL view");
+}
+
 TGE_TEST(draw_border_fills_perimeter)
 {
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
+    tge_grid_view_attach(&v, c);
     tge_grid_view_draw_border(&v, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     for (int x = 0; x < 8; x++)
         TGE_ASSERT(cell_is(c, x, 0, 0x2588), "top border");
@@ -133,7 +244,8 @@ TGE_TEST(draw_border_square_cells)
 {
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     tge_grid_view_draw_border(&v, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_is(c, 0, 0, 0x2588) && cell_is(c, 1, 0, 0x2588),
                "2x1 top-left cell");
@@ -147,7 +259,8 @@ TGE_TEST(set_cell_writes_default_sprite)
 {
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     tge_grid_view_set_cell(&v, 1, 2, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_is(c, 2, 2, 0x2588), "default sprite left col");
     TGE_ASSERT(cell_is(c, 3, 2, 0x2588), "default sprite right col");
@@ -159,7 +272,8 @@ TGE_TEST(put_draws_sprite)
     static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
     TGE_Canvas *c = tge_canvas_create(8, 4);
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_1X1);
+    tge_grid_view_attach(&v, c);
     tge_grid_view_put(&v, 3, 1, &cross, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     TGE_ASSERT(cell_at(c, 3, 1)->ch == '<', "sprite left glyph");
     TGE_ASSERT(cell_at(c, 4, 1)->ch == '>', "sprite right glyph");
@@ -180,7 +294,8 @@ TGE_TEST(set_cell_local_maps_through_layout)
 {
     TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     TGE_View layout = layout_for(1, 12, 8);
     tge_grid_view_set_cell_local(&v, &layout, tge_vec2i(0, 0),
                                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
@@ -195,7 +310,8 @@ TGE_TEST(set_cell_local_uses_custom_margin)
 {
     TGE_Canvas *c = tge_canvas_create(32, 12); /* 16x12 grid cells at 2x1 */
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     TGE_View layout = layout_for(3, 16, 12);
     tge_grid_view_set_cell_local(&v, &layout, tge_vec2i(0, 0),
                                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
@@ -208,7 +324,8 @@ TGE_TEST(put_local_maps_through_layout)
     static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
     TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     TGE_View layout = layout_for(1, 12, 8);
     tge_grid_view_put_local(&v, &layout, tge_vec2i(1, 2), &cross,
                             TGE_COLOR_GREEN, TGE_COLOR_BLACK);
@@ -222,7 +339,8 @@ TGE_TEST(put_attr_local_sets_attr)
     static const TGE_Sprite cross = TGE_SPRITE(2, 1, "<>", NULL);
     TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     TGE_View layout = layout_for(1, 12, 8);
     tge_grid_view_put_attr_local(&v, &layout, tge_vec2i(1, 2), &cross,
                                  TGE_COLOR_GREEN, TGE_COLOR_BLACK,
@@ -245,7 +363,8 @@ TGE_TEST(local_ops_null_safety)
                                  TGE_CELL_ATTR_BOLD);
     TGE_Canvas *c = tge_canvas_create(24, 8); /* 12x8 grid cells at 2x1 */
     TGE_GridView v;
-    tge_grid_view_init(&v, c, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&v, &TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&v, c);
     tge_grid_view_set_cell_local(&v, NULL, tge_vec2i(0, 0),
                                  TGE_COLOR_GREEN, TGE_COLOR_BLACK);
     tge_grid_view_put_local(&v, NULL, tge_vec2i(0, 0), &cross,
@@ -259,7 +378,8 @@ TGE_TEST(local_ops_null_safety)
 
 TGE_TEST(null_safety)
 {
-    tge_grid_view_init(NULL, NULL, NULL, TGE_GRID_SCALE_1X1);
+    tge_grid_view_init(NULL, NULL, TGE_GRID_SCALE_1X1);
+    tge_grid_view_attach(NULL, NULL);
     TGE_ASSERT(tge_grid_view_width(NULL) == 0, "NULL width 0");
     TGE_ASSERT(tge_grid_view_height(NULL) == 0, "NULL height 0");
     tge_grid_view_draw_border(NULL, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
@@ -272,12 +392,17 @@ int main(void)
     tge_unicode_set_mode(TGE_UNICODE_ON);
     test_init_1x1();
     test_init_2x1();
+    test_attach_repoints_canvas();
     test_null_theme_falls_back_to_blocks();
     test_width_height_adapts_to_resize();
     test_origin_shrinks_view();
     test_size_for_matches_canvas_dims();
     test_size_for_with_origin_and_no_canvas();
     test_size_for_null_safety();
+    test_grid_layout_init_binds_view();
+    test_grid_layout_sync_fires_on_change_only();
+    test_grid_layout_sync_honors_origin_and_cache();
+    test_grid_layout_null_safety();
     test_draw_border_fills_perimeter();
     test_draw_border_square_cells();
     test_set_cell_writes_default_sprite();

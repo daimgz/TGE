@@ -29,15 +29,26 @@ typedef enum {
  * and malleable: after tge_grid_view_init(), set view.grid.theme or call
  * tge_grid_set_origin(&view.grid, ...) freely.
  *
+ * The view is configured in two phases, mirroring TGE_Grid:
+ *
+ *   tge_grid_view_init(&view, theme, scale);  // once: theme, cell size
+ *   tge_grid_view_attach(&view, canvas);      // per frame: current canvas
+ *
+ * init() is the persistent configuration (theme, cell size, origin (0, 0)),
+ * attach() points the view at the canvas being drawn. The app swaps its
+ * double buffers every frame, so the canvas pointer changes on every draw
+ * while the configuration persists; a game typically calls attach() at the
+ * start of each draw and never touches init() again.
+ *
  * Note: it is zero-initialized when embedded as a struct member, which gives
  * the deliberately invalid NULL canvas; there is no valid zero state, so it
  * MUST be initialized with tge_grid_view_init() before drawing.
  *
  * Typical use:
  *   TGE_GridView grid_view;
- *   tge_grid_view_init(&grid_view, canvas, TGE_GRID_THEME_BLOCKS,
- *                      TGE_GRID_SCALE_2X1);
+ *   tge_grid_view_init(&grid_view, TGE_GRID_THEME_BLOCKS, TGE_GRID_SCALE_2X1);
  *   // per frame:
+ *   tge_grid_view_attach(&grid_view, canvas);
  *   tge_grid_view_draw_border(&grid_view, TGE_WHITE, TGE_BLACK);
  *   tge_grid_view_set_cell(&grid_view, snake[i].x, snake[i].y,
  *                          TGE_GREEN, TGE_BLACK); */
@@ -45,10 +56,16 @@ typedef struct {
     TGE_Grid grid; /* the initialized grid: theme, cell size, origin */
 } TGE_GridView;
 
-/* Initialize the view over `canvas`: theme set, cell size per `scale`
- * (1X1 -> 1x1, 2X1 -> 2x1) and origin (0, 0). */
-void tge_grid_view_init(TGE_GridView *view, TGE_Canvas *canvas,
-                        const TGE_GridTheme *theme, TGE_GridScale scale);
+/* Configure the view once: theme set, cell size per `scale` (1X1 -> 1x1,
+ * 2X1 -> 2x1) and origin (0, 0). The canvas is attached separately with
+ * tge_grid_view_attach() and persists across re-attaches. */
+void tge_grid_view_init(TGE_GridView *view, const TGE_GridTheme *theme,
+                        TGE_GridScale scale);
+
+/* Point the view at the canvas it draws into. Call it at the start of every
+ * draw: the app swaps its double buffers each frame, so the canvas pointer
+ * changes while the configuration from init() persists. */
+void tge_grid_view_attach(TGE_GridView *view, TGE_Canvas *canvas);
 
 /* Logical size of the view: delegates to tge_grid_width/height, so it adapts
  * when the canvas is resized and shrinks near the bottom/right margins. */
@@ -60,6 +77,45 @@ int tge_grid_view_height(const TGE_GridView *view);
  * Delegates to tge_grid_size_for. */
 void tge_grid_view_size_for(const TGE_GridView *view, int w, int h, int *gw,
                             int *gh);
+
+/* Auxiliary layout state of a grid view: which logical grid size has already
+ * been applied to the world, so games recompute the layout only when the
+ * surface changed. The view computes how a canvas maps to grid cells; the
+ * layout remembers what was applied to the world, keeping the "the world
+ * never remembers how it was presented" rule:
+ *
+ *   TGE_GridLayout layout;
+ *   tge_grid_layout_init(&layout, &grid_view);   // once, after init
+ *   // per draw / on resize:
+ *   tge_grid_layout_sync(&layout, w, h, world_resize_cb, &world);
+ *
+ * It is a grid-view concept, not a game one: the sync only compares sizes
+ * and fires a resize callback; it never touches the game, the canvas or the
+ * drawing state. */
+typedef struct {
+    TGE_GridView *view; /* the grid the sizes are computed from */
+    int cached_width;   /* last logical grid width applied to the world */
+    int cached_height;  /* last logical grid height applied to the world */
+} TGE_GridLayout;
+
+/* Resize notification: called when the logical grid size changed, with the
+ * new grid size and the userdata passed to tge_grid_layout_sync. */
+typedef void (*tge_grid_layout_resize_fn)(void *userdata, int grid_w,
+                                          int grid_h);
+
+/* Point the layout at its grid view and reset the cache (0, 0), so the first
+ * sync always reports a change. Call once after tge_grid_view_init(). */
+void tge_grid_layout_init(TGE_GridLayout *layout, TGE_GridView *view);
+
+/* Recompute the logical grid size for a surface of `surface_w` x
+ * `surface_h` (via tge_grid_view_size_for). When it differs from the cached
+ * size, updates the cache and calls `on_resize` (non-NULL) with the new grid
+ * size and `userdata`; returns true when a resize happened. A resize never
+ * mutates game state: the callback is the only effect, and the caller owns
+ * whatever it does with the new size. */
+bool tge_grid_layout_sync(TGE_GridLayout *layout, int surface_w,
+                          int surface_h, tge_grid_layout_resize_fn on_resize,
+                          void *userdata);
 
 /* Border around the whole logical view (the theme `border` sprite). */
 void tge_grid_view_draw_border(TGE_GridView *view, TGE_Color fg, TGE_Color bg);

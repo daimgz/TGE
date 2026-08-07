@@ -1,16 +1,26 @@
 #include "tge-extra/grid_view.h"
 
-void tge_grid_view_init(TGE_GridView *view, TGE_Canvas *canvas,
-                        const TGE_GridTheme *theme, TGE_GridScale scale)
+#include <stdbool.h>
+#include <stddef.h>
+
+void tge_grid_view_init(TGE_GridView *view, const TGE_GridTheme *theme,
+                        TGE_GridScale scale)
 {
     if (!view)
         return;
-    tge_grid_init(&view->grid, canvas);
+    tge_grid_init(&view->grid, NULL);
     view->grid.theme = theme ? theme : &TGE_GRID_THEME_BLOCKS;
     if (scale == TGE_GRID_SCALE_2X1)
         tge_grid_square_pixels(&view->grid);
     else
         tge_grid_set_cell_size(&view->grid, 1, 1);
+}
+
+void tge_grid_view_attach(TGE_GridView *view, TGE_Canvas *canvas)
+{
+    if (!view)
+        return;
+    tge_grid_attach(&view->grid, canvas);
 }
 
 int tge_grid_view_width(const TGE_GridView *view)
@@ -33,6 +43,33 @@ void tge_grid_view_size_for(const TGE_GridView *view, int w, int h, int *gw,
     if (!view)
         return;
     tge_grid_size_for(&view->grid, w, h, gw, gh);
+}
+
+void tge_grid_layout_init(TGE_GridLayout *layout, TGE_GridView *view)
+{
+    if (!layout)
+        return;
+    layout->view = view;
+    layout->cached_width = 0;
+    layout->cached_height = 0;
+}
+
+bool tge_grid_layout_sync(TGE_GridLayout *layout, int surface_w,
+                          int surface_h, tge_grid_layout_resize_fn on_resize,
+                          void *userdata)
+{
+    if (!layout || !layout->view)
+        return false;
+    int grid_w, grid_h;
+    tge_grid_view_size_for(layout->view, surface_w, surface_h, &grid_w,
+                           &grid_h);
+    if (grid_w == layout->cached_width && grid_h == layout->cached_height)
+        return false;
+    layout->cached_width = grid_w;
+    layout->cached_height = grid_h;
+    if (on_resize)
+        on_resize(userdata, grid_w, grid_h);
+    return true;
 }
 
 void tge_grid_view_draw_border(TGE_GridView *view, TGE_Color fg, TGE_Color bg)

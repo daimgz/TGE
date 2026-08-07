@@ -49,3 +49,15 @@ void *tge_game_scene_create(TGE_App *app, TGE_Scene **out, size_t game_size,
     ctx->callbacks = callbacks;
     return instance;
 }
+
+TGE_GameContext *tge_game_create(TGE_App *app, size_t game_size,
+                                 const TGE_GameCallbacks *callbacks)
+{
+    TGE_Scene *scene = NULL;
+    TGE_GameContext *ctx = (TGE_GameContext *)tge_game_scene_create(
+        app, &scene, game_size, callbacks);
+    if (!ctx)
+        return NULL;
+    TGE_PushScene(app, scene);
+    return ctx;
+}

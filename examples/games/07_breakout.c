@@ -10,7 +10,10 @@
  *   BreakoutRenderer everything that touches the screen: canvas clear, HUD
  *                    (tge_printf), and the playfield through a TGE_GridView
  *                    (theme, cell size, origin). The world is only read,
- *                    never changed.
+ *                    never changed. It also owns a TGE_GridLayout: the grid
+ *                    size the world was last laid out for, so game_draw()
+ *                    re-lays the world only when the terminal changed. The
+ *                    world never remembers how it was presented.
  *   BreakoutGame     the whole game: the scene glue (a TGE_GameContext from
  *                    tge-extra/game, first member) that owns one BreakoutWorld
  *                    + one BreakoutRenderer, moves input into the world,
@@ -38,10 +41,12 @@
  */
 #include "tge/tge.h"
 
+#include "tge-extra/array.h"
 #include "tge-extra/game.h"
 #include "tge-extra/grid.h"
 #include "tge-extra/grid_view.h"
 #include "tge-extra/input.h"
+#include "tge-extra/ui.h"
 #include "tge-extra/vec2i.h"
 #include "tge-extra/view.h"
 
@@ -78,7 +83,6 @@ typedef struct {
 
 typedef struct {
     TGE_View view;      /* logical playfield layout; view.area is the interior */
-    int gw, gh;         /* last logical grid size the layout was computed for */
     uint8_t *cells;     /* brick marks, area.w * area.h, 1 = brick */
     int cap;
     int bricks_left;
@@ -343,20 +347,10 @@ static void world_resize_fix(BreakoutWorld *w)
  * too-small size stays inactive until the terminal grows. */
 static void world_layout(BreakoutWorld *w, int gw, int gh)
 {
-    w->gw = gw;
-    w->gh = gh;
     TGE_ViewUpdate upd = tge_view_update(&w->view, gw, gh);
 
     int cap = w->view.area.w * w->view.area.h;
-    if (cap < 1)
-        cap = 1;
-    if (cap != w->cap) {
-        uint8_t *nc = (uint8_t *)realloc(w->cells, (size_t)cap);
-        if (nc) {
-            w->cells = nc;
-            w->cap = cap;
-        }
-    }
+    tge_array_resize((void **)&w->cells, &w->cap, cap, sizeof(uint8_t));
 
     switch (upd) {
     case TGE_VIEW_FIRST_VALID:
@@ -380,8 +374,8 @@ static void world_init(BreakoutWorld *w)
 /* ------------------------------------------------------------- renderer */
 
 typedef struct {
-    const TGE_GridTheme *theme;
     TGE_GridView view;
+    TGE_GridLayout layout; /* grid size already applied to the world */
 } BreakoutRenderer;
 
 static const TGE_Sprite SPR_EMPTY = TGE_SPRITE(2, 1, "  ", NULL);
@@ -417,32 +411,31 @@ static TGE_Color brick_color(int row)
     }
 }
 
-/* Sync the renderer with the canvas currently being drawn (the app swaps its
- * double buffers every frame, so the view is re-attached per draw). */
+/* Point the grid at the canvas being drawn (the app swaps its double buffers
+ * every frame); the theme, cell size and HUD origin were configured once in
+ * title_event and persist across attaches. */
 static void renderer_bind(BreakoutRenderer *r, TGE_Canvas *canvas)
 {
-    tge_grid_view_init(&r->view, canvas, r->theme, TGE_GRID_SCALE_2X1);
-    tge_grid_set_origin(&r->view.grid, 0, 1);
+    tge_grid_view_attach(&r->view, canvas);
 }
 
 static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
                           const BreakoutWorld *w)
 {
-    int cw = tge_canvas_width(canvas);
     int ch = tge_canvas_height(canvas);
     renderer_bind(r, canvas);
 
-    tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
 
-    tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK,
+    tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT,
                " SCORE: %d  LVL: %d  LIVES: %d ", w->score, w->level,
                w->lives);
 
-    tge_grid_view_draw_border(&r->view, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_grid_view_draw_border(&r->view, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
 
     if (!w->view.valid) {
         tge_draw_centered_text(canvas, ch / 2, " too small ",
-                               TGE_COLOR_RED, TGE_COLOR_BLACK);
+                               TGE_COLOR_RED, TGE_COLOR_DEFAULT);
         return;
     }
 
@@ -452,7 +445,7 @@ static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
                 continue;
             tge_grid_view_set_cell_local(&r->view, &w->view,
                                          tge_vec2i(lx, ly), brick_color(ly),
-                                         TGE_COLOR_BLACK);
+                                         TGE_COLOR_DEFAULT);
         }
     }
 
@@ -461,34 +454,23 @@ static void renderer_draw(BreakoutRenderer *r, TGE_Canvas *canvas,
     for (int i = 0; i < PADDLE_W; i++)
         tge_grid_view_put_local(&r->view, &w->view,
                                 tge_vec2i(px0 + i, py), &SPR_PADDLE,
-                                TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+                                TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
 
     if (w->state != BREAKOUT_OVER) {
         tge_grid_view_put_local(&r->view, &w->view,
                                 tge_vec2i((int)w->bx, (int)w->by), &SPR_BALL,
-                                TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+                                TGE_COLOR_WHITE, TGE_COLOR_DEFAULT);
     }
 
     if (w->state == BREAKOUT_OVER) {
-        const char *msg = " GAME OVER ";
         const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
-        tge_fill_rect(canvas, 1, ch / 2 - 1, cw - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, ch / 2 - 1, msg, TGE_COLOR_RED,
-                               TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, ch / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+        tge_draw_modal(canvas, " GAME OVER ", again, TGE_COLOR_RED);
     } else if (w->paused) {
         const char *again = " [P] resume ";
-        tge_fill_rect(canvas, 1, ch / 2 - 1, cw - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, ch / 2 - 1, " PAUSED ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, ch / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+        tge_draw_modal(canvas, " PAUSED ", again, TGE_COLOR_YELLOW);
     } else if (w->state == BREAKOUT_SERVE) {
         tge_draw_centered_text(canvas, ch / 2 + 2, " [SPACE]/[ENTER] serve ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+                               TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
     }
 }
 
@@ -507,6 +489,11 @@ typedef struct {
  */
 static TGE_App *g_app = NULL;
 
+static void game_world_layout(void *userdata, int gw, int gh)
+{
+    world_layout((BreakoutWorld *)userdata, gw, gh);
+}
+
 static void game_update(TGE_GameContext *ctx, float dt)
 {
     BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
@@ -516,12 +503,9 @@ static void game_update(TGE_GameContext *ctx, float dt)
 static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas)
 {
     BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    int gw, gh;
-    tge_grid_view_size_for(&g->renderer.view, w, h, &gw, &gh);
-    if (g->world.gw != gw || g->world.gh != gh)
-        world_layout(&g->world, gw, gh);
+    tge_grid_layout_sync(&g->renderer.layout, tge_canvas_width(canvas),
+                         tge_canvas_height(canvas), game_world_layout,
+                         &g->world);
     renderer_draw(&g->renderer, canvas, &g->world);
 }
 
@@ -530,10 +514,8 @@ static void game_event(TGE_GameContext *ctx, TGE_Event *ev)
     BreakoutGame *g = (BreakoutGame *)tge_game_instance(ctx);
 
     if (ev->type == TGE_EVENT_RESIZE) {
-        int gw, gh;
-        tge_grid_view_size_for(&g->renderer.view, ev->data.resize.w,
-                               ev->data.resize.h, &gw, &gh);
-        world_layout(&g->world, gw, gh);
+        tge_grid_layout_sync(&g->renderer.layout, ev->data.resize.w,
+                             ev->data.resize.h, game_world_layout, &g->world);
         if (g->world.state != BREAKOUT_OVER)
             g->world.paused = true;
         return;
@@ -583,7 +565,7 @@ static void game_destroy(TGE_GameContext *ctx)
     free(g->world.cells);
 }
 
-/* The breakout's interface, handed to tge_game_scene_create(). */
+/* The breakout's interface, handed to tge_game_create(). */
 static const TGE_GameCallbacks breakout_callbacks = {
     game_update, game_draw, game_event, game_destroy,
 };
@@ -598,29 +580,30 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *controls = " Left/Right or A/D move  [SPACE]/[ENTER] serve  P: pause ";
     const char *start = " [ENTER] start  [ESC]/[Q] quit ";
 
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
     tge_draw_centered_text(canvas, h / 2 - 4, title, TGE_COLOR_GREEN,
-                           TGE_COLOR_BLACK);
+                           TGE_COLOR_DEFAULT);
     tge_draw_centered_text(canvas, h / 2 - 2, subtitle, TGE_COLOR_CYAN,
-                           TGE_COLOR_BLACK);
+                           TGE_COLOR_DEFAULT);
     tge_draw_centered_text(canvas, h / 2 + 1, controls, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
+                           TGE_COLOR_DEFAULT);
     tge_draw_centered_text(canvas, h / 2 + 3, start, TGE_COLOR_YELLOW,
-                           TGE_COLOR_BLACK);
+                           TGE_COLOR_DEFAULT);
 
     TGE_GridView gv;
-    tge_grid_view_init(&gv, canvas, &BREAKOUT_THEME, TGE_GRID_SCALE_2X1);
+    tge_grid_view_init(&gv, &BREAKOUT_THEME, TGE_GRID_SCALE_2X1);
+    tge_grid_view_attach(&gv, canvas);
     tge_grid_set_origin(&gv.grid, 0, h / 2 + 4);
     int gw, gh;
     tge_grid_view_size_for(&gv, w, h, &gw, &gh);
     int cx = (gw - 6) / 2;
     for (int i = 0; i < 6; i++)
-        tge_grid_view_set_cell(&gv, cx + i, 0, TGE_COLOR_RED, TGE_COLOR_BLACK);
+        tge_grid_view_set_cell(&gv, cx + i, 0, TGE_COLOR_RED, TGE_COLOR_DEFAULT);
     tge_grid_view_put(&gv, cx + 2, 3, &SPR_BALL, TGE_COLOR_WHITE,
-                      TGE_COLOR_BLACK);
+                      TGE_COLOR_DEFAULT);
     for (int i = 0; i < 5; i++)
         tge_grid_view_put(&gv, cx + 1 + i, 5, &SPR_PADDLE, TGE_COLOR_GREEN,
-                          TGE_COLOR_BLACK);
+                          TGE_COLOR_DEFAULT);
 }
 
 static void title_event(TGE_Scene *scene, TGE_Event *ev)
@@ -631,15 +614,17 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
         return;
     }
     if (tge_input_confirm(ev)) {
-        TGE_Scene *game = NULL;
-        BreakoutGame *g = (BreakoutGame *)tge_game_scene_create(
-            g_app, &game, sizeof(BreakoutGame), &breakout_callbacks);
-        g->renderer.theme = &BREAKOUT_THEME;
-        tge_grid_view_init(&g->renderer.view, NULL, &BREAKOUT_THEME,
+        BreakoutGame *g = (BreakoutGame *)tge_game_create(
+            g_app, sizeof(BreakoutGame), &breakout_callbacks);
+        if (!g)
+            return;
+        /* Configure the renderer geometry once (cell size 2x1, HUD origin);
+         * renderer_bind() re-attaches the current canvas every frame. */
+        tge_grid_view_init(&g->renderer.view, &BREAKOUT_THEME,
                            TGE_GRID_SCALE_2X1);
         tge_grid_set_origin(&g->renderer.view.grid, 0, 1);
+        tge_grid_layout_init(&g->renderer.layout, &g->renderer.view);
         world_init(&g->world);
-        TGE_PushScene(g_app, game);
     }
 }
 

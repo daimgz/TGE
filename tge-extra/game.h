@@ -68,6 +68,15 @@ static inline void *tge_game_instance(TGE_GameContext *ctx)
 void *tge_game_scene_create(TGE_App *app, TGE_Scene **out, size_t game_size,
                             const TGE_GameCallbacks *callbacks);
 
+/* Convenience wrapper for the common title-screen flow: creates the game
+ * scene exactly like tge_game_scene_create and pushes it on the app in one
+ * call, returning the context at offset 0 of the instance (the caller casts
+ * it to its game struct: `MyGame *game = (MyGame *)tge_game_create(...)`).
+ * Same rejection rules as tge_game_scene_create; nothing is pushed on
+ * failure. */
+TGE_GameContext *tge_game_create(TGE_App *app, size_t game_size,
+                                 const TGE_GameCallbacks *callbacks);
+
 #ifdef __cplusplus
 }
 #endif

@@ -194,6 +194,36 @@ TGE_TEST(game_size_too_small_rejected)
     TGE_Destroy(app);
 }
 
+TGE_TEST(game_create_pushes_scene)
+{
+    MockData *m;
+    TGE_App *app = make_test_app(&m);
+    TGE_GameContext *ctx = tge_game_create(app, sizeof(TestGame),
+                                           &full_callbacks);
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(ctx != NULL, "context returned");
+    TGE_ASSERT(ctx->instance == ctx, "offset-0 context");
+    TGE_ASSERT(ctx->callbacks == &full_callbacks, "callbacks stored");
+    TGE_ASSERT(app->scene_count == 1, "scene pushed");
+    TGE_ASSERT(app->scenes[0] != NULL && app->scenes[0]->userdata == ctx,
+               "game scene on top");
+    TGE_ASSERT(app->scenes[0]->update != NULL && app->scenes[0]->draw != NULL &&
+               app->scenes[0]->event != NULL && app->scenes[0]->destroy != NULL,
+               "trampolines wired");
+    TGE_Destroy(app);
+}
+
+TGE_TEST(game_create_rejects_null_callbacks)
+{
+    MockData *m;
+    TGE_App *app = make_test_app(&m);
+    TGE_GameContext *ctx = tge_game_create(app, sizeof(TestGame), NULL);
+    TGE_ASSERT(ctx == NULL, "null callbacks rejected");
+    tge_app_process_scene_ops(app);
+    TGE_ASSERT(app->scene_count == 0, "nothing pushed on rejection");
+    TGE_Destroy(app);
+}
+
 int main(void)
 {
     test_create_fills_context();
@@ -204,5 +234,7 @@ int main(void)
     test_event_null_not_wired();
     test_destroy_null_not_wired();
     test_game_size_too_small_rejected();
+    test_game_create_pushes_scene();
+    test_game_create_rejects_null_callbacks();
     return tge_test_report();
 }
