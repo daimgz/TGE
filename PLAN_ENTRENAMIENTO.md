@@ -827,10 +827,20 @@ app.run(PongScene())
 | E | Space Invaders | escenas, bullets, oleadas | ~200 |
 
 > Estado: A–E ya existen como `examples/games/01_snake` … `04_space_invaders`
-> (más `05_swarm`, `06_snake_grid`, `07_breakout`). Cada uno es la referencia
-> de un módulo: 01 → `view`/`fixedstep`/`input_buffer`, 03 → `grid`+`timer`+
+> (más `05_swarm`, `06_snake_grid`, `07_breakout`, `08_geometry_dash`,
+> `09_dungeon`, `10_map_editor`). Cada uno es la referencia de un módulo:
+> 01 → `view`/`fixedstep`/`input_buffer`, 03 → `grid`+`timer`+
 > `view`+`vec2i`, 05 → `entity`/`animation`/`collision`, 06 → `grid`/
 > `grid_view`, 07 → cuándo **no** usar `fixedstep`/`input_buffer`.
+> `08_geometry_dash` → `tge_game_create` + `ui`, y `09_dungeon` /
+> `10_map_editor` son los dos experimentos de composición de regiones que
+> motivaron el ADR "Regiones de pantalla" (ver más abajo).
+>
+> Roles de los ejemplos de Snake: `01_snake` es el **ejemplo mínimo** — un
+> juego escrito directamente sobre la API de escenas (userdata, callbacks con
+> `TGE_Scene *`), para enseñar la capa baja. `06_snake_grid` es el **ejemplo
+> de referencia** — la arquitectura que deben tener los juegos de TGE
+> (`TGE_Game` + mundo/renderer separados); 01 queda como contraparte mínima.
 
 ### Fase 3b — Segunda tanda de juegos (validación de tge-extra)
 
@@ -867,6 +877,63 @@ pide, no antes.**
 | 21 | tge-extra/FOV | shadowcasting |
 | 22 | tge-extra/Pathfinding | A* sobre tilemap |
 | 23 | tge-extra/Noise | ruido Perlin/Simplex |
+
+---
+
+## ADR — Regiones de pantalla (composición)
+
+Fecha: 2026-08-07. Decisión tomada tras tres consumidores independientes
+(`03_tetris`, `09_dungeon`, `10_map_editor`) de dominios distintos (puzzle,
+roguelike, herramienta interactiva): el patrón no es una casualidad del
+dominio. Se registra como ADR, no como resultado de fase, para que no haya
+que reconstruir el "por qué" en el futuro.
+
+**Validado.**
+
+- `TGE_Rect` es la unidad geométrica de composición. Los tres consumidores
+  escribieron `static const TGE_Rect` de forma natural; no hizo falta
+  `TGE_Region` ni macros por región. (Los tamaños siguen siendo macros cuando
+  dimensionan arrays de compilación, que en C no aceptan `static const int`.)
+- `tge_rect_inset(r, 1)` — el área interior de una región con borde —
+  pertenece al núcleo matemático. Fue el primer helper que emergió en el
+  editor, antes de cualquier helper de dibujo, y el patrón apareció en los
+  tres consumidores. Se extrajo a `tge_math.h` / `src/math.c`.
+- Las regiones son **geometría + render**; el input vive fuera de ellas. La
+  paleta del editor es una región interactiva y no maneja eventos:
+  `game_event` resuelve el foco y la región sigue siendo rect + función de
+  dibujo. El flujo es `event → game state → renderer → region`, nunca
+  `event → panel → game`.
+
+**No validado (permanece local a los ejemplos).**
+
+- `region_draw()`: el patrón "borde + título opcional" apareció tres veces,
+  pero es una opinión de estilo (mañana puede haber `tge_draw_region`,
+  `tge_draw_panel`, `tge_draw_frame_title`, o bordes con divisor). La firma
+  sigue abierta; no se extrae.
+- Widgets, layout managers, docking, flex, sistemas de GUI (inmediata o
+  retenida): no aparecieron en ningún consumidor. Los layouts siguen siendo
+  constantes `TGE_Rect`.
+
+**Pendiente de evidencia.**
+
+- `tge_rect_center()`, `tge_rect_right()` y cualquier otro helper geométrico:
+  no emergieron; no se agregan "por si acaso".
+
+**Regla vigente.** Una abstracción se extrae cuando ≥3 consumidores
+independientes la piden (excepción: geometría universal, como
+`tge_rect_inset`). No se construyen consumidores para validar una abstracción:
+si un futuro ejemplo necesita un helper equivalente, se mide ahí; si no lo
+necesita, no se fuerza.
+
+**Métricas (10_map_editor, registradas en vivo).**
+
+- Representación: 4 regiones como `static const TGE_Rect`; tamaños como
+  macros solo por los arrays de celdas.
+- Inset: escrito a mano 1 vez y usado 3 (origen del grid, filas de la paleta,
+  texto de herramientas) → reach directo a `tge_rect_inset`.
+- `region_draw` emergió con firma `(TGE_Rect, título, color)` — antes
+  `(x, y, w, h, título, color)` — la misma forma parametrizada por rect.
+- Modificaciones de región durante el desarrollo: 0.
 
 ---
 
