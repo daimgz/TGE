@@ -58,6 +58,17 @@ TGE_TEST(rect_intersects)
     TGE_ASSERT(!tge_rect_intersects(a, e), "zero width empty");
 }
 
+TGE_TEST(rect_inset)
+{
+    TGE_Rect r = tge_rect(2, 3, 10, 8);
+    TGE_Rect i = tge_rect_inset(r, 1);
+    TGE_ASSERT(i.x == 3 && i.y == 4 && i.w == 8 && i.h == 6, "inset 1");
+    TGE_Rect z = tge_rect_inset(r, 0);
+    TGE_ASSERT(z.x == 2 && z.y == 3 && z.w == 10 && z.h == 8, "inset 0 copy");
+    TGE_Rect big = tge_rect_inset(r, 4);
+    TGE_ASSERT(big.w == 2 && big.h == 0, "large inset shrinks");
+}
+
 TGE_TEST(circle_intersects)
 {
     TGE_Rect rect = tge_rect(10, 10, 10, 10);
@@ -102,6 +113,7 @@ int main(void)
     test_vec2_length_distance();
     test_rect_contains();
     test_rect_intersects();
+    test_rect_inset();
     test_circle_intersects();
     test_vec2_normalize();
     test_segments_intersect();

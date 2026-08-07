@@ -30,6 +30,9 @@ TGE_Vector2 tge_vec2_normalize(TGE_Vector2 v);
 TGE_Rect tge_rect(int x, int y, int w, int h);
 bool     tge_rect_contains(TGE_Rect r, int x, int y);
 bool     tge_rect_intersects(TGE_Rect a, TGE_Rect b);
+/* The rect shrunken by `n` cells on every side (the frame of a bordered box):
+ * a region's content area is tge_rect_inset(r, 1). n = 0 copies the rect. */
+TGE_Rect tge_rect_inset(TGE_Rect r, int n);
 bool     tge_circle_intersects(TGE_Vector2 center, float r, TGE_Rect rect);
 /* Segment-vs-segment intersection test. Returns true when the segments
  * touch or cross; returns false for parallel/collinear segments. */

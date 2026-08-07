@@ -34,6 +34,11 @@ bool tge_rect_intersects(TGE_Rect a, TGE_Rect b)
            a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+TGE_Rect tge_rect_inset(TGE_Rect r, int n)
+{
+    return tge_rect(r.x + n, r.y + n, r.w - 2 * n, r.h - 2 * n);
+}
+
 TGE_Vector2 tge_vec2(float x, float y)
 {
     TGE_Vector2 v = {x, y};
