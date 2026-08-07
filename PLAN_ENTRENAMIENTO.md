@@ -827,12 +827,13 @@ app.run(PongScene())
 | E | Space Invaders | escenas, bullets, oleadas | ~200 |
 
 > Estado: A–E ya existen como `examples/games/01_snake` … `04_space_invaders`
-> (más `05_swarm`, `06_snake_grid`, `07_breakout`, `08_geometry_dash`,
+> (más `05_swarm`, `06_snake_grid`, `07_breakout`, `08_dino`,
 > `09_dungeon`, `10_map_editor`). Cada uno es la referencia de un módulo:
 > 01 → `view`/`fixedstep`/`input_buffer`, 03 → `grid`+`timer`+
 > `view`+`vec2i`, 05 → `entity`/`animation`/`collision`, 06 → `grid`/
 > `grid_view`, 07 → cuándo **no** usar `fixedstep`/`input_buffer`.
-> `08_geometry_dash` → `tge_game_create` + `ui`, y `09_dungeon` /
+> `08_dino` → `tge_game_create` + `ui` (clon del T-Rex Runner de Chrome,
+> sustituto del intento de Geometry Dash), y `09_dungeon` /
 > `10_map_editor` son los dos experimentos de composición de regiones que
 > motivaron el ADR "Regiones de pantalla" (ver más abajo).
 >
