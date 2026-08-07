@@ -68,7 +68,7 @@ static void draw_body(TGE_EntityPool *pool, TGE_EntityId id, void *userdata,
             hit = true;
     TGE_Color c = hit ? TGE_COLOR_RED : TGE_COLOR_GREEN;
     if (b->x >= 0 && b->x < g_w && b->y >= 0 && b->y < g_h)
-        tge_set_cell(canvas, b->x, b->y, hit ? 'X' : '.', c, TGE_COLOR_BLACK);
+        tge_set_cell(canvas, b->x, b->y, hit ? 'X' : '.', c, TGE_COLOR_DEFAULT);
 }
 
 static void init(TGE_App *app)
@@ -112,12 +112,12 @@ static void draw(TGE_App *app, TGE_Canvas *canvas)
     tge_entity_for_each(g_pool, draw_body, canvas);
     if (g_probe.x >= 0 && g_probe.x < g_w && g_probe.y >= 0 && g_probe.y < g_h)
         tge_set_cell(canvas, g_probe.x, g_probe.y, 'P', TGE_COLOR_YELLOW,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
     char line[64];
     snprintf(line, sizeof(line), "hits: %d / %d", g_hit_count, N_ENTITIES);
-    tge_draw_text(canvas, 1, 1, line, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_draw_text(canvas, 1, 1, line, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT);
     tge_draw_text(canvas, 1, g_h - 1, "[ESC] quit", TGE_COLOR_MAGENTA,
-                  TGE_COLOR_BLACK);
+                  TGE_COLOR_DEFAULT);
 }
 
 static void free_bodies(TGE_EntityPool *pool, TGE_EntityId id, void *userdata,

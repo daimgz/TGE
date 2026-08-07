@@ -1,3 +1,10 @@
+/* 01_snake - minimal example: a game written directly on the scene API.
+ *
+ * No TGE_Game adapter, no grid: the scene owns GameState through
+ * scene->userdata and the callbacks receive the TGE_Scene. This is the
+ * lowest layer games can be built on. 06_snake_grid is the reference
+ * example of the game architecture (TGE_Game + world / renderer split).
+ */
 #include "tge/tge.h"
 
 #include "tge-extra/direction.h"
@@ -41,125 +48,73 @@ typedef struct {
 
 static TGE_App *g_app = NULL;
 
-static void snake_init(GameState *s)
+static void init_app(TGE_App *app);
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void title_event(TGE_Scene *scene, TGE_Event *ev);
+static void game_update(TGE_Scene *scene, float dt);
+static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void game_event(TGE_Scene *scene, TGE_Event *ev);
+static void game_destroy(TGE_Scene *scene);
+static void snake_init(GameState *s);
+static void snake_resize(GameState *s, int w, int h);
+static void snake_reset(GameState *s);
+static bool snake_step(GameState *s);
+static bool spawn_food(GameState *s);
+
+int main(void)
 {
-    tge_view_init(&s->view, MIN_FW, MIN_FH);
-    tge_input_buffer_init(&s->input, DIR_QUEUE);
+    /* Requested size is the minimum/fallback: the core starts with the real
+     * terminal size when it can query it (TIOCGWINSZ). */
+    TGE_App *app = TGE_Create(MIN_FW + 2, MIN_FH + 2, "TGE Snake");
+    if (!app)
+        return 1;
+    TGE_Run(app, init_app, NULL, NULL, NULL);
+    TGE_Destroy(app);
+    return 0;
 }
 
-static bool spawn_food(GameState *s)
+static void init_app(TGE_App *app)
 {
-    if (s->view.area.w * s->view.area.h - s->len <= 0)
-        return false;
-    for (;;) {
-        TGE_Vec2i p = tge_view_random_point(&s->view);
-        bool free_spot = true;
-        for (int i = 0; i < s->len; i++) {
-            if (tge_vec2i_eq(s->body[i], p)) {
-                free_spot = false;
-                break;
-            }
-        }
-        if (free_spot) {
-            s->food = p;
-            return true;
-        }
-    }
+    g_app = app;
+    TGE_Scene *title = NULL;
+    tge_scene_create(&title, 0, NULL, title_draw, title_event, NULL);
+    title->opaque = false;
+    TGE_PushScene(app, title);
 }
 
-static void snake_reset(GameState *s)
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
-    int cx = s->view.area.w / 2;
-    int cy = s->view.area.h / 2;
-    s->len = 3;
-    s->body[0] = tge_vec2i(cx, cy);
-    s->body[1] = tge_vec2i(cx - 1, cy);
-    s->body[2] = tge_vec2i(cx - 2, cy);
-    s->dir = TGE_DIR_RIGHT;
-    s->score = 0;
-    s->state = SNAKE_RUNNING;
-    s->paused = false;
-    tge_fixedstep_init(&s->step, MOVE_INTERVAL);
-    tge_input_buffer_clear(&s->input);
-    spawn_food(s);
+    (void)scene;
+    int w = tge_canvas_width(canvas);
+    int h = tge_canvas_height(canvas);
+    const char *title = " SNAKE ";
+    const char *controls = " Arrows/WASD move  [P] pause ";
+    const char *start = " [ENTER] start  [ESC]/[Q] quit ";
+
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_DEFAULT);
 }
 
-/* Recompute the playfield layout for a new canvas size. The view decides what
- * the layout means: the first valid one spawns a fresh snake, later resizes
- * keep the current one (clamped into the new bounds, food respawned if it no
- * longer fits), and a too-small size stays inactive until the terminal grows. */
-static void snake_resize(GameState *s, int w, int h)
+static void title_event(TGE_Scene *scene, TGE_Event *ev)
 {
-    s->w = w;
-    s->h = h;
-    TGE_ViewUpdate upd = tge_view_update(&s->view, w, h);
-
-    int cap = s->view.area.w * s->view.area.h;
-    if (cap < 1)
-        cap = 1;
-    if (cap != s->cap) {
-        TGE_Vec2i *nb =
-            (TGE_Vec2i *)realloc(s->body, (size_t)cap * sizeof(TGE_Vec2i));
-        if (nb) {
-            s->body = nb;
-            s->cap = cap;
-        }
+    (void)scene;
+    if (tge_input_cancel(ev) || tge_input_quit(ev)) {
+        TGE_Quit(g_app);
+        return;
     }
-    if (s->len > s->cap)
-        s->len = s->cap;
-
-    switch (upd) {
-    case TGE_VIEW_FIRST_VALID:
-        snake_reset(s);
-        break;
-    case TGE_VIEW_RESIZED:
-        for (int i = 0; i < s->len; i++)
-            s->body[i] =
-                tge_vec2i_clamp_rect(s->body[i], tge_view_local_bounds(&s->view));
-        if (!tge_view_contains(&s->view, s->food)) {
-            if (!spawn_food(s))
-                s->state = SNAKE_OVER;
-        }
-        break;
-    case TGE_VIEW_INVALID:
-    default:
-        break;
+    if (tge_input_confirm(ev)) {
+        TGE_Scene *game = NULL;
+        GameState *s = (GameState *)tge_scene_create(
+            &game, sizeof(GameState), game_update, game_draw, game_event,
+            game_destroy);
+        snake_init(s);
+        TGE_PushScene(g_app, game);
     }
-}
-
-static bool snake_step(GameState *s)
-{
-    TGE_Direction d;
-    while (tge_input_buffer_pop(&s->input, &d)) {
-        if (d == tge_direction_opposite(s->dir) || d == s->dir)
-            continue;
-        s->dir = d;
-        break;
-    }
-
-    TGE_Vec2i nh = tge_vec2i_add(s->body[0], tge_direction_vec(s->dir));
-
-    /* Hitting the playfield wall ends the game. */
-    if (!tge_view_contains(&s->view, nh))
-        return false;
-
-    bool ate = tge_vec2i_eq(nh, s->food);
-    int check_to = s->len - (ate ? 0 : 1);
-    for (int i = 0; i < check_to; i++) {
-        if (tge_vec2i_eq(nh, s->body[i]))
-            return false;
-    }
-
-    for (int i = s->len; i > 0; i--)
-        s->body[i] = s->body[i - 1];
-    s->body[0] = nh;
-
-    if (ate) {
-        s->len++;
-        s->score += 10;
-        return spawn_food(s);
-    }
-    return true;
 }
 
 static void game_update(TGE_Scene *scene, float dt)
@@ -185,43 +140,43 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     if (s->w != w || s->h != h)
         snake_resize(s, w, h);
 
-    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
 
-    tge_printf(canvas, 2, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK, " SCORE: %d ",
+    tge_printf(canvas, 2, 0, TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT, " SCORE: %d ",
                s->score);
 
     if (!s->view.valid) {
         tge_draw_centered_text(canvas, h / 2, " too small ",
-                               TGE_COLOR_RED, TGE_COLOR_BLACK);
+                               TGE_COLOR_RED, TGE_COLOR_DEFAULT);
         return;
     }
 
     for (int i = 0; i < s->len; i++) {
         TGE_Vec2i gp = tge_view_translate(&s->view, s->body[i]);
         tge_set_cell(canvas, gp.x, gp.y, (i == 0) ? '@' : 'o',
-                     TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+                     TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
     }
     TGE_Vec2i fp = tge_view_translate(&s->view, s->food);
-    tge_set_cell(canvas, fp.x, fp.y, '*', TGE_COLOR_RED, TGE_COLOR_BLACK);
+    tge_set_cell(canvas, fp.x, fp.y, '*', TGE_COLOR_RED, TGE_COLOR_DEFAULT);
 
     if (s->state == SNAKE_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] restart  [ESC] menu  [Q] quit ";
-        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 - 1, msg, TGE_COLOR_RED,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     } else if (s->paused) {
         const char *again = " [P] resume ";
-        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+                               TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     }
 }
 
@@ -268,58 +223,123 @@ static void game_destroy(TGE_Scene *scene)
     free(s->body);
 }
 
-static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+static void snake_init(GameState *s)
 {
-    (void)scene;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    const char *title = " SNAKE ";
-    const char *controls = " Arrows/WASD move  [P] pause ";
-    const char *start = " [ENTER] start  [ESC]/[Q] quit ";
-
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
-                           TGE_COLOR_BLACK);
+    tge_view_init(&s->view, MIN_FW, MIN_FH);
+    tge_input_buffer_init(&s->input, DIR_QUEUE);
 }
 
-static void title_event(TGE_Scene *scene, TGE_Event *ev)
+/* Recompute the playfield layout for a new canvas size. The view decides what
+ * the layout means: the first valid one spawns a fresh snake, later resizes
+ * keep the current one (clamped into the new bounds, food respawned if it no
+ * longer fits), and a too-small size stays inactive until the terminal grows. */
+static void snake_resize(GameState *s, int w, int h)
 {
-    (void)scene;
-    if (tge_input_cancel(ev) || tge_input_quit(ev)) {
-        TGE_Quit(g_app);
-        return;
+    s->w = w;
+    s->h = h;
+    TGE_ViewUpdate upd = tge_view_update(&s->view, w, h);
+
+    int cap = s->view.area.w * s->view.area.h;
+    if (cap < 1)
+        cap = 1;
+    if (cap != s->cap) {
+        TGE_Vec2i *nb =
+            (TGE_Vec2i *)realloc(s->body, (size_t)cap * sizeof(TGE_Vec2i));
+        if (nb) {
+            s->body = nb;
+            s->cap = cap;
+        }
     }
-    if (tge_input_confirm(ev)) {
-        TGE_Scene *game = NULL;
-        GameState *s = (GameState *)tge_scene_create(
-            &game, sizeof(GameState), game_update, game_draw, game_event,
-            game_destroy);
-        snake_init(s);
-        TGE_PushScene(g_app, game);
+    if (s->len > s->cap)
+        s->len = s->cap;
+
+    switch (upd) {
+    case TGE_VIEW_FIRST_VALID:
+        snake_reset(s);
+        break;
+    case TGE_VIEW_RESIZED:
+        for (int i = 0; i < s->len; i++)
+            s->body[i] =
+                tge_vec2i_clamp_rect(s->body[i], tge_view_local_bounds(&s->view));
+        if (!tge_view_contains(&s->view, s->food)) {
+            if (!spawn_food(s))
+                s->state = SNAKE_OVER;
+        }
+        break;
+    case TGE_VIEW_INVALID:
+    default:
+        break;
     }
 }
 
-static void init_app(TGE_App *app)
+static void snake_reset(GameState *s)
 {
-    g_app = app;
-    TGE_Scene *title = NULL;
-    tge_scene_create(&title, 0, NULL, title_draw, title_event, NULL);
-    title->opaque = false;
-    TGE_PushScene(app, title);
+    int cx = s->view.area.w / 2;
+    int cy = s->view.area.h / 2;
+    s->len = 3;
+    s->body[0] = tge_vec2i(cx, cy);
+    s->body[1] = tge_vec2i(cx - 1, cy);
+    s->body[2] = tge_vec2i(cx - 2, cy);
+    s->dir = TGE_DIR_RIGHT;
+    s->score = 0;
+    s->state = SNAKE_RUNNING;
+    s->paused = false;
+    tge_fixedstep_init(&s->step, MOVE_INTERVAL);
+    tge_input_buffer_clear(&s->input);
+    spawn_food(s);
 }
 
-int main(void)
+static bool snake_step(GameState *s)
 {
-    /* Requested size is the minimum/fallback: the core starts with the real
-     * terminal size when it can query it (TIOCGWINSZ). */
-    TGE_App *app = TGE_Create(MIN_FW + 2, MIN_FH + 2, "TGE Snake");
-    if (!app)
-        return 1;
-    TGE_Run(app, init_app, NULL, NULL, NULL);
-    TGE_Destroy(app);
-    return 0;
+    TGE_Direction d;
+    while (tge_input_buffer_pop(&s->input, &d)) {
+        if (d == tge_direction_opposite(s->dir) || d == s->dir)
+            continue;
+        s->dir = d;
+        break;
+    }
+
+    TGE_Vec2i nh = tge_vec2i_add(s->body[0], tge_direction_vec(s->dir));
+
+    /* Hitting the playfield wall ends the game. */
+    if (!tge_view_contains(&s->view, nh))
+        return false;
+
+    bool ate = tge_vec2i_eq(nh, s->food);
+    int check_to = s->len - (ate ? 0 : 1);
+    for (int i = 0; i < check_to; i++) {
+        if (tge_vec2i_eq(nh, s->body[i]))
+            return false;
+    }
+
+    for (int i = s->len; i > 0; i--)
+        s->body[i] = s->body[i - 1];
+    s->body[0] = nh;
+
+    if (ate) {
+        s->len++;
+        s->score += 10;
+        return spawn_food(s);
+    }
+    return true;
+}
+
+static bool spawn_food(GameState *s)
+{
+    if (s->view.area.w * s->view.area.h - s->len <= 0)
+        return false;
+    for (;;) {
+        TGE_Vec2i p = tge_view_random_point(&s->view);
+        bool free_spot = true;
+        for (int i = 0; i < s->len; i++) {
+            if (tge_vec2i_eq(s->body[i], p)) {
+                free_spot = false;
+                break;
+            }
+        }
+        if (free_spot) {
+            s->food = p;
+            return true;
+        }
+    }
 }

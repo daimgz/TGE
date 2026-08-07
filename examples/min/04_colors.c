@@ -24,17 +24,17 @@ static void draw(TGE_App *app, TGE_Canvas *canvas)
     (void)app;
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT);
     tge_draw_text(canvas, 2, 1, "colors - 8 indexed colors",
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+                  TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
     for (int i = 0; i < 8; i++) {
         int y = 3 + i;
         tge_fill_rect(canvas, 2, y, 16, 1, ' ', TGE_COLOR_WHITE, color_of(i));
         tge_draw_text(canvas, 20, y, names[i], TGE_COLOR_WHITE,
-                      TGE_COLOR_BLACK);
+                      TGE_COLOR_DEFAULT);
     }
     tge_draw_text(canvas, 2, h - 2, "[ESC] quit", TGE_COLOR_MAGENTA,
-                  TGE_COLOR_BLACK);
+                  TGE_COLOR_DEFAULT);
 }
 
 static void on_event(TGE_App *app, TGE_Event *ev)

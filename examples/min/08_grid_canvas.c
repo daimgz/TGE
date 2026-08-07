@@ -45,56 +45,56 @@ static void update(TGE_App *app, float dt)
 static void draw(TGE_App *app, TGE_Canvas *canvas)
 {
     (void)app;
-    tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
 
     tge_draw_text(canvas, 2, 0,
                   "same circle: raw 1x1 (left) vs grid 2x1 (right)",
-                  TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, 2, 1, "1x1", TGE_COLOR_MAGENTA, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, 33, 1, "2x1", TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+                  TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_text(canvas, 2, 1, "1x1", TGE_COLOR_MAGENTA, TGE_COLOR_DEFAULT);
+    tge_draw_text(canvas, 33, 1, "2x1", TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
 
     tge_draw_circle(canvas, 14, 7, 5, 0x2588, TGE_COLOR_MAGENTA,
-                    TGE_COLOR_BLACK);
+                    TGE_COLOR_DEFAULT);
 
     TGE_Grid grid;
     tge_grid_init(&grid, canvas);
     tge_grid_square_pixels(&grid);
     tge_grid_set_origin(&grid, 31, 2);
-    tge_grid_draw_circle(&grid, 7, 5, 4, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_draw_circle(&grid, 7, 5, 4, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
 
     TGE_Grid demo;
     tge_grid_init(&demo, canvas);
     tge_grid_square_pixels(&demo);
     tge_grid_set_origin(&demo, 2, 15);
     demo.theme = &TGE_GRID_THEME_BLOCKS;
-    tge_grid_set_cell(&demo, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_set_cell(&demo, 0, 0, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
     tge_grid_put_tile(&demo, 1, 0, TGE_TILE_SELECTION, TGE_COLOR_YELLOW,
-                      TGE_COLOR_BLACK);
+                      TGE_COLOR_DEFAULT);
     demo.theme = &TGE_GRID_THEME_DOTS;
-    tge_grid_set_cell(&demo, 4, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_set_cell(&demo, 4, 0, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
     tge_grid_put_tile(&demo, 5, 0, TGE_TILE_SELECTION, TGE_COLOR_YELLOW,
-                      TGE_COLOR_BLACK);
+                      TGE_COLOR_DEFAULT);
     demo.theme = &TGE_GRID_THEME_ASCII;
-    tge_grid_set_cell(&demo, 8, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+    tge_grid_set_cell(&demo, 8, 0, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
     tge_grid_put_tile(&demo, 9, 0, TGE_TILE_SELECTION, TGE_COLOR_YELLOW,
-                      TGE_COLOR_BLACK);
+                      TGE_COLOR_DEFAULT);
     tge_draw_text(canvas, 2, 14,
                   "theme swap: BLOCKS | DOTS | ASCII (default + selection)",
-                  TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+                  TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
 
     TGE_Grid bounce;
     tge_grid_init(&bounce, canvas);
     tge_grid_square_pixels(&bounce);
     tge_grid_set_origin(&bounce, 1, 17);
     tge_grid_draw_border(&bounce, 0, 0, 29, 6, TGE_COLOR_WHITE,
-                         TGE_COLOR_BLACK);
+                         TGE_COLOR_DEFAULT);
     tge_grid_set_cell(&bounce, (int)lroundf(g_bx), (int)lroundf(g_by),
-                      TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+                      TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
 
     tge_draw_text(canvas, 2, 16, "bouncing ball at 2x1 (equal vx, vy)",
-                  TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+                  TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
     tge_draw_text(canvas, 2, 23, "[ESC] quit", TGE_COLOR_WHITE,
-                  TGE_COLOR_BLACK);
+                  TGE_COLOR_DEFAULT);
 }
 
 static void on_event(TGE_App *app, TGE_Event *ev)

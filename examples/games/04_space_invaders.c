@@ -48,202 +48,98 @@ static TGE_Scene g_menu;
 static TGE_Scene g_game;
 static Invaders g_inv;
 
-static int score_of_row(int row)
+static void init_app(TGE_App *app);
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void title_event(TGE_Scene *scene, TGE_Event *ev);
+static void si_init(TGE_Scene *scene);
+static void si_update(TGE_Scene *scene, float dt);
+static void draw_hud(TGE_Canvas *canvas, const Invaders *t);
+static void si_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void si_event(TGE_Scene *scene, TGE_Event *ev);
+static void spawn_wave(Invaders *t);
+static void reset(Invaders *t);
+static void start_wave(Invaders *t);
+static void step_invaders(Invaders *t);
+static void enemy_shoot(Invaders *t);
+static void step_player_bullet(Invaders *t);
+static void step_enemy_bullets(Invaders *t);
+static void hit_player(Invaders *t);
+static void game_over(Invaders *t);
+static void clear_all_bullets(Invaders *t);
+static int score_of_row(int row);
+static uint32_t char_of_row(int row);
+
+int main(void)
 {
-    return row == 0 ? 30 : (row <= 2 ? 20 : 10);
+    TGE_App *app = TGE_Create(WIN_W, WIN_H, "TGE Space Invaders");
+    if (!app)
+        return 1;
+    TGE_Run(app, init_app, NULL, NULL, NULL);
+    TGE_Destroy(app);
+    return 0;
 }
 
-static uint32_t char_of_row(int row)
+static void init_app(TGE_App *app)
 {
-    return row == 0 ? 0x25B2 : (row <= 2 ? 0x25AC : 0x2584);
+    g_app = app;
+
+    memset(&g_menu, 0, sizeof(g_menu));
+    g_menu.opaque = false;
+    g_menu.draw = title_draw;
+    g_menu.event = title_event;
+
+    memset(&g_game, 0, sizeof(g_game));
+    g_game.opaque = true;
+    g_game.userdata = &g_inv;
+    g_game.init = si_init;
+    g_game.update = si_update;
+    g_game.draw = si_draw;
+    g_game.event = si_event;
+
+    TGE_PushScene(app, &g_menu);
 }
 
-static void spawn_wave(Invaders *t)
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
-    for (int y = 0; y < GRID_ROWS; y++)
-        for (int x = 0; x < GRID_COLS; x++)
-            t->alive[y][x] = 1;
-    t->count = GRID_ROWS * GRID_COLS;
-    t->inv_x = 1;
-    t->inv_y = 1;
-    t->dir = 1;
-    float iv = 0.45f * 0.85f * (float)(t->level - 1);
-    if (iv > 0.45f)
-        iv = 0.45f;
-    if (iv < 0.08f)
-        iv = 0.08f;
-    t->move_interval = iv;
-    for (int i = 0; i < MAX_EBULLETS; i++)
-        t->eb_active[i] = 0;
-    t->pb_active = 0;
-    t->state = SI_PLAYING;
+    (void)scene;
+    int w = tge_canvas_width(canvas);
+    int h = tge_canvas_height(canvas);
+    const char *title = " SPACE INVADERS ";
+    const char *controls = " Arrows/WASD move  Space/Up shoot  P: pause ";
+    const char *start = " [ENTER] start  [ESC]/[Q] quit ";
+
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_DEFAULT);
 }
 
-static void reset(Invaders *t)
+static void title_event(TGE_Scene *scene, TGE_Event *ev)
 {
-    t->score = 0;
-    t->level = 1;
-    t->lives = 3;
-    t->paused = false;
-    t->px = WIN_W / 2;
-    t->hit_flash = 0.0f;
-    t->shot_acc = 0.0f;
-    t->bullet_acc = 0.0f;
-    t->shot_interval = 0.8f;
-    spawn_wave(t);
-}
-
-static void game_over(Invaders *t)
-{
-    t->state = SI_OVER;
-    t->pb_active = 0;
-    for (int i = 0; i < MAX_EBULLETS; i++)
-        t->eb_active[i] = 0;
-}
-
-static void start_wave(Invaders *t)
-{
-    t->level++;
-    spawn_wave(t);
-}
-
-static void clear_all_bullets(Invaders *t)
-{
-    t->pb_active = 0;
-    for (int i = 0; i < MAX_EBULLETS; i++)
-        t->eb_active[i] = 0;
-}
-
-static void hit_player(Invaders *t)
-{
-    t->lives--;
-    clear_all_bullets(t);
-    if (t->lives <= 0) {
-        game_over(t);
-    } else {
-        t->hit_flash = 0.9f;
-        t->px = WIN_W / 2;
-    }
-}
-
-static void step_invaders(Invaders *t)
-{
-    if (t->count <= 0)
-        return;
-    int minx = 99, maxx = -1, maxy = -1;
-    for (int y = 0; y < GRID_ROWS; y++)
-        for (int x = 0; x < GRID_COLS; x++)
-            if (t->alive[y][x]) {
-                if (x * 2 < minx)
-                    minx = x * 2;
-                if (x * 2 + 1 > maxx)
-                    maxx = x * 2 + 1;
-                if (y > maxy)
-                    maxy = y;
-            }
-    int left = t->inv_x + minx;
-    int right = t->inv_x + maxx;
-    if (t->dir > 0 && right >= WIN_W - 2) {
-        t->dir = -1;
-        t->inv_y++;
-    } else if (t->dir < 0 && left <= 1) {
-        t->dir = 1;
-        t->inv_y++;
-    } else {
-        t->inv_x += t->dir;
-    }
-    if (t->inv_y + maxy >= PLAYER_Y)
-        game_over(t);
-}
-
-static void step_player_bullet(Invaders *t)
-{
-    if (!t->pb_active)
-        return;
-    t->pb_y--;
-    if (t->pb_y < 1) {
-        t->pb_active = 0;
-        return;
-    }
-    for (int y = 0; y < GRID_ROWS && t->pb_active; y++)
-        for (int x = 0; x < GRID_COLS && t->pb_active; x++)
-            if (t->alive[y][x] && t->pb_y == t->inv_y + y &&
-                (t->pb_x == t->inv_x + x * 2 ||
-                 t->pb_x == t->inv_x + x * 2 + 1)) {
-                t->alive[y][x] = 0;
-                t->count--;
-                t->score += score_of_row(y);
-                t->pb_active = 0;
-                if (t->count <= 0) {
-                    t->state = SI_WAVE;
-                    t->wave_timer = 1.2f;
-                }
-            }
-}
-
-static void step_enemy_bullets(Invaders *t)
-{
-    for (int i = 0; i < MAX_EBULLETS; i++) {
-        if (!t->eb_active[i])
-            continue;
-        t->eb_y[i]++;
-        if (t->eb_y[i] > PLAYER_Y) {
-            t->eb_active[i] = 0;
-            continue;
+    (void)scene;
+    bool enter = false;
+    if (ev->type == TGE_EVENT_TEXT) {
+        if (ev->data.text.codepoint == 13) {
+            enter = true;
+        } else if (ev->data.text.codepoint == 'q' ||
+                   ev->data.text.codepoint == 'Q') {
+            TGE_Quit(g_app);
+            return;
         }
-        if (t->eb_y[i] == PLAYER_Y && t->eb_x[i] >= t->px - 1 &&
-            t->eb_x[i] <= t->px + 1) {
-            t->eb_active[i] = 0;
-            hit_player(t);
-            continue;
-        }
-        if (t->pb_active && t->eb_y[i] == t->pb_y &&
-            t->eb_x[i] == t->pb_x) {
-            t->pb_active = 0;
-            t->eb_active[i] = 0;
-        }
+    } else if (ev->type == TGE_EVENT_KEYDOWN &&
+               ev->data.key.keycode == TGE_KEY_ENTER) {
+        enter = true;
     }
-}
-
-static void enemy_shoot(Invaders *t)
-{
-    if (t->count <= 0)
+    if (ev->type == TGE_EVENT_KEYDOWN &&
+        ev->data.key.keycode == TGE_KEY_ESC) {
+        TGE_Quit(g_app);
         return;
-    int active_bullets = 0;
-    for (int i = 0; i < MAX_EBULLETS; i++)
-        if (t->eb_active[i])
-            active_bullets++;
-    if (active_bullets >= MAX_EBULLETS)
-        return;
-    int col = rand() % GRID_COLS;
-    for (int tries = 0; tries < GRID_COLS; tries++) {
-        int alive_in_col = 0;
-        for (int y = 0; y < GRID_ROWS; y++)
-            if (t->alive[y][col]) {
-                alive_in_col = 1;
-                break;
-            }
-        if (alive_in_col)
-            break;
-        col = (col + 1) % GRID_COLS;
     }
-    int row = -1;
-    for (int y = 0; y < GRID_ROWS; y++)
-        if (t->alive[y][col])
-            row = y;
-    if (row < 0)
-        return;
-    for (int i = 0; i < MAX_EBULLETS; i++) {
-        if (!t->eb_active[i]) {
-            t->eb_active[i] = 1;
-            t->eb_x[i] = t->inv_x + col * 2 + (rand() % 2);
-            t->eb_y[i] = t->inv_y + row;
-            break;
-        }
-    }
-    t->shot_interval = 0.3f + (float)(rand() % 70) / 100.0f +
-                       (float)(t->level - 1) * 0.05f;
-    t->shot_acc = 0.0f;
+    if (enter)
+        TGE_PushScene(g_app, &g_game);
 }
 
 static void si_init(TGE_Scene *scene)
@@ -300,13 +196,13 @@ static void si_update(TGE_Scene *scene, float dt)
 
 static void draw_hud(TGE_Canvas *canvas, const Invaders *t)
 {
-    tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK,
+    tge_printf(canvas, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT,
                " SCORE %06d ", t->score);
-    tge_printf(canvas, 14, 0, TGE_COLOR_CYAN, TGE_COLOR_BLACK, " LV %d ",
+    tge_printf(canvas, 14, 0, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT, " LV %d ",
                t->level);
-    tge_printf(canvas, 22, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK, " LIVES %d ",
+    tge_printf(canvas, 22, 0, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT, " LIVES %d ",
                t->lives);
-    tge_printf(canvas, 33, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, " LEF %02d ",
+    tge_printf(canvas, 33, 0, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT, " LEF %02d ",
                t->count);
 }
 
@@ -316,8 +212,8 @@ static void si_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
 
-    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
 
     draw_hud(canvas, t);
 
@@ -329,48 +225,48 @@ static void si_draw(TGE_Scene *scene, TGE_Canvas *canvas)
                                 : (y <= 2 ? TGE_COLOR_YELLOW
                                           : TGE_COLOR_GREEN);
                 tge_set_cell(canvas, t->inv_x + x * 2, t->inv_y + y, ch, col,
-                             TGE_COLOR_BLACK);
+                             TGE_COLOR_DEFAULT);
                 tge_set_cell(canvas, t->inv_x + x * 2 + 1, t->inv_y + y, ch,
-                             col, TGE_COLOR_BLACK);
+                             col, TGE_COLOR_DEFAULT);
             }
 
     if (t->hit_flash <= 0.0f) {
         tge_set_cell(canvas, t->px - 1, PLAYER_Y, '\\', TGE_COLOR_GREEN,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
         tge_set_cell(canvas, t->px, PLAYER_Y, '^', TGE_COLOR_GREEN,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
         tge_set_cell(canvas, t->px + 1, PLAYER_Y, '/', TGE_COLOR_GREEN,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
     }
 
     if (t->pb_active)
         tge_set_cell(canvas, t->pb_x, t->pb_y, '|', TGE_COLOR_WHITE,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
     for (int i = 0; i < MAX_EBULLETS; i++)
         if (t->eb_active[i])
             tge_set_cell(canvas, t->eb_x[i], t->eb_y[i], '|', TGE_COLOR_RED,
-                         TGE_COLOR_BLACK);
+                         TGE_COLOR_DEFAULT);
 
     if (t->state == SI_OVER) {
         const char *msg = " GAME OVER ";
         const char *again = " [ENTER] retry  [ESC] menu  [Q] quit ";
         tge_draw_centered_text(canvas, h / 2 - 2, msg, TGE_COLOR_RED,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     } else if (t->paused) {
         const char *again = " [P] resume ";
-        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+                               TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     } else if (t->state == SI_WAVE) {
         char buf[24];
         snprintf(buf, sizeof(buf), " WAVE %d ", t->level + 1);
         tge_draw_centered_text(canvas, h / 2, buf, TGE_COLOR_YELLOW,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     }
 }
 
@@ -453,75 +349,200 @@ static void si_event(TGE_Scene *scene, TGE_Event *ev)
     }
 }
 
-static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+static void spawn_wave(Invaders *t)
 {
-    (void)scene;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    const char *title = " SPACE INVADERS ";
-    const char *controls = " Arrows/WASD move  Space/Up shoot  P: pause ";
-    const char *start = " [ENTER] start  [ESC]/[Q] quit ";
-
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
-                           TGE_COLOR_BLACK);
+    for (int y = 0; y < GRID_ROWS; y++)
+        for (int x = 0; x < GRID_COLS; x++)
+            t->alive[y][x] = 1;
+    t->count = GRID_ROWS * GRID_COLS;
+    t->inv_x = 1;
+    t->inv_y = 1;
+    t->dir = 1;
+    float iv = 0.45f * 0.85f * (float)(t->level - 1);
+    if (iv > 0.45f)
+        iv = 0.45f;
+    if (iv < 0.08f)
+        iv = 0.08f;
+    t->move_interval = iv;
+    for (int i = 0; i < MAX_EBULLETS; i++)
+        t->eb_active[i] = 0;
+    t->pb_active = 0;
+    t->state = SI_PLAYING;
 }
 
-static void title_event(TGE_Scene *scene, TGE_Event *ev)
+static void reset(Invaders *t)
 {
-    (void)scene;
-    bool enter = false;
-    if (ev->type == TGE_EVENT_TEXT) {
-        if (ev->data.text.codepoint == 13) {
-            enter = true;
-        } else if (ev->data.text.codepoint == 'q' ||
-                   ev->data.text.codepoint == 'Q') {
-            TGE_Quit(g_app);
-            return;
-        }
-    } else if (ev->type == TGE_EVENT_KEYDOWN &&
-               ev->data.key.keycode == TGE_KEY_ENTER) {
-        enter = true;
+    t->score = 0;
+    t->level = 1;
+    t->lives = 3;
+    t->paused = false;
+    t->px = WIN_W / 2;
+    t->hit_flash = 0.0f;
+    t->shot_acc = 0.0f;
+    t->bullet_acc = 0.0f;
+    t->shot_interval = 0.8f;
+    spawn_wave(t);
+}
+
+static void start_wave(Invaders *t)
+{
+    t->level++;
+    spawn_wave(t);
+}
+
+static void step_invaders(Invaders *t)
+{
+    if (t->count <= 0)
+        return;
+    int minx = 99, maxx = -1, maxy = -1;
+    for (int y = 0; y < GRID_ROWS; y++)
+        for (int x = 0; x < GRID_COLS; x++)
+            if (t->alive[y][x]) {
+                if (x * 2 < minx)
+                    minx = x * 2;
+                if (x * 2 + 1 > maxx)
+                    maxx = x * 2 + 1;
+                if (y > maxy)
+                    maxy = y;
+            }
+    int left = t->inv_x + minx;
+    int right = t->inv_x + maxx;
+    if (t->dir > 0 && right >= WIN_W - 2) {
+        t->dir = -1;
+        t->inv_y++;
+    } else if (t->dir < 0 && left <= 1) {
+        t->dir = 1;
+        t->inv_y++;
+    } else {
+        t->inv_x += t->dir;
     }
-    if (ev->type == TGE_EVENT_KEYDOWN &&
-        ev->data.key.keycode == TGE_KEY_ESC) {
-        TGE_Quit(g_app);
+    if (t->inv_y + maxy >= PLAYER_Y)
+        game_over(t);
+}
+
+static void enemy_shoot(Invaders *t)
+{
+    if (t->count <= 0)
+        return;
+    int active_bullets = 0;
+    for (int i = 0; i < MAX_EBULLETS; i++)
+        if (t->eb_active[i])
+            active_bullets++;
+    if (active_bullets >= MAX_EBULLETS)
+        return;
+    int col = rand() % GRID_COLS;
+    for (int tries = 0; tries < GRID_COLS; tries++) {
+        int alive_in_col = 0;
+        for (int y = 0; y < GRID_ROWS; y++)
+            if (t->alive[y][col]) {
+                alive_in_col = 1;
+                break;
+            }
+        if (alive_in_col)
+            break;
+        col = (col + 1) % GRID_COLS;
+    }
+    int row = -1;
+    for (int y = 0; y < GRID_ROWS; y++)
+        if (t->alive[y][col])
+            row = y;
+    if (row < 0)
+        return;
+    for (int i = 0; i < MAX_EBULLETS; i++) {
+        if (!t->eb_active[i]) {
+            t->eb_active[i] = 1;
+            t->eb_x[i] = t->inv_x + col * 2 + (rand() % 2);
+            t->eb_y[i] = t->inv_y + row;
+            break;
+        }
+    }
+    t->shot_interval = 0.3f + (float)(rand() % 70) / 100.0f +
+                       (float)(t->level - 1) * 0.05f;
+    t->shot_acc = 0.0f;
+}
+
+static void step_player_bullet(Invaders *t)
+{
+    if (!t->pb_active)
+        return;
+    t->pb_y--;
+    if (t->pb_y < 1) {
+        t->pb_active = 0;
         return;
     }
-    if (enter)
-        TGE_PushScene(g_app, &g_game);
+    for (int y = 0; y < GRID_ROWS && t->pb_active; y++)
+        for (int x = 0; x < GRID_COLS && t->pb_active; x++)
+            if (t->alive[y][x] && t->pb_y == t->inv_y + y &&
+                (t->pb_x == t->inv_x + x * 2 ||
+                 t->pb_x == t->inv_x + x * 2 + 1)) {
+                t->alive[y][x] = 0;
+                t->count--;
+                t->score += score_of_row(y);
+                t->pb_active = 0;
+                if (t->count <= 0) {
+                    t->state = SI_WAVE;
+                    t->wave_timer = 1.2f;
+                }
+            }
 }
 
-static void init_app(TGE_App *app)
+static void step_enemy_bullets(Invaders *t)
 {
-    g_app = app;
-
-    memset(&g_menu, 0, sizeof(g_menu));
-    g_menu.opaque = false;
-    g_menu.draw = title_draw;
-    g_menu.event = title_event;
-
-    memset(&g_game, 0, sizeof(g_game));
-    g_game.opaque = true;
-    g_game.userdata = &g_inv;
-    g_game.init = si_init;
-    g_game.update = si_update;
-    g_game.draw = si_draw;
-    g_game.event = si_event;
-
-    TGE_PushScene(app, &g_menu);
+    for (int i = 0; i < MAX_EBULLETS; i++) {
+        if (!t->eb_active[i])
+            continue;
+        t->eb_y[i]++;
+        if (t->eb_y[i] > PLAYER_Y) {
+            t->eb_active[i] = 0;
+            continue;
+        }
+        if (t->eb_y[i] == PLAYER_Y && t->eb_x[i] >= t->px - 1 &&
+            t->eb_x[i] <= t->px + 1) {
+            t->eb_active[i] = 0;
+            hit_player(t);
+            continue;
+        }
+        if (t->pb_active && t->eb_y[i] == t->pb_y &&
+            t->eb_x[i] == t->pb_x) {
+            t->pb_active = 0;
+            t->eb_active[i] = 0;
+        }
+    }
 }
 
-int main(void)
+static void hit_player(Invaders *t)
 {
-    TGE_App *app = TGE_Create(WIN_W, WIN_H, "TGE Space Invaders");
-    if (!app)
-        return 1;
-    TGE_Run(app, init_app, NULL, NULL, NULL);
-    TGE_Destroy(app);
-    return 0;
+    t->lives--;
+    clear_all_bullets(t);
+    if (t->lives <= 0) {
+        game_over(t);
+    } else {
+        t->hit_flash = 0.9f;
+        t->px = WIN_W / 2;
+    }
+}
+
+static void game_over(Invaders *t)
+{
+    t->state = SI_OVER;
+    t->pb_active = 0;
+    for (int i = 0; i < MAX_EBULLETS; i++)
+        t->eb_active[i] = 0;
+}
+
+static void clear_all_bullets(Invaders *t)
+{
+    t->pb_active = 0;
+    for (int i = 0; i < MAX_EBULLETS; i++)
+        t->eb_active[i] = 0;
+}
+
+static int score_of_row(int row)
+{
+    return row == 0 ? 30 : (row <= 2 ? 20 : 10);
+}
+
+static uint32_t char_of_row(int row)
+{
+    return row == 0 ? 0x25B2 : (row <= 2 ? 0x25AC : 0x2584);
 }

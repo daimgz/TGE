@@ -43,49 +43,90 @@ static TGE_Scene g_menu;
 static TGE_Scene g_game;
 static Pong g_pong;
 
-static void start_serve(Pong *g)
+static void init_app(TGE_App *app);
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void title_event(TGE_Scene *scene, TGE_Event *ev);
+static void game_init(TGE_Scene *scene);
+static void game_update(TGE_Scene *scene, float dt);
+static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void game_event(TGE_Scene *scene, TGE_Event *ev);
+static void start_serve(Pong *g);
+static void restart_match(Pong *g);
+static void reflect(Pong *g, int dir);
+
+int main(void)
 {
-    TGE_Runtime *rt = TGE_GetRuntime(g_app);
-    if (g->cd_timer >= 0)
-        tge_runtime_cancel_scheduled(rt, g->cd_timer);
-    g->bx = (float)WIN_W / 2.0f;
-    g->by = (float)WIN_H / 2.0f;
-    g->state = STATE_COUNTDOWN;
-    g->countdown = 3;
-    g->go_flash = 0.0f;
-    g->bvx = 0.0f;
-    g->bvy = 0.0f;
-    g->cd_timer = tge_runtime_call_every(rt, 1.0, TMR_COUNTDOWN,
-                                         TGE_TIMER_NORMAL);
+    TGE_App *app = TGE_Create(WIN_W, WIN_H, "TGE Pong");
+    if (!app)
+        return 1;
+    TGE_Run(app, init_app, NULL, NULL, NULL);
+    TGE_Destroy(app);
+    return 0;
 }
 
-static void restart_match(Pong *g)
+static void init_app(TGE_App *app)
 {
-    g->score1 = 0;
-    g->score2 = 0;
-    g->paused = false;
-    g->p1y = (float)(WIN_H - PADDLE_H) / 2.0f;
-    g->p2y = (float)(WIN_H - PADDLE_H) / 2.0f;
-    g->speed = BALL_SPEED;
-    g->serve_dir = (rand() % 2) ? 1 : -1;
-    start_serve(g);
+    g_app = app;
+
+    memset(&g_menu, 0, sizeof(g_menu));
+    g_menu.opaque = false;
+    g_menu.draw = title_draw;
+    g_menu.event = title_event;
+
+    memset(&g_game, 0, sizeof(g_game));
+    g_game.opaque = true;
+    g_game.userdata = &g_pong;
+    g_game.init = game_init;
+    g_game.update = game_update;
+    g_game.draw = game_draw;
+    g_game.event = game_event;
+
+    TGE_PushScene(app, &g_menu);
 }
 
-static void reflect(Pong *g, int dir)
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
 {
-    float py = (dir < 0) ? g->p2y : g->p1y;
-    float rel = (g->by - (py + PADDLE_H / 2.0f)) / (PADDLE_H / 2.0f);
-    if (rel > 1.0f)
-        rel = 1.0f;
-    else if (rel < -1.0f)
-        rel = -1.0f;
-    float vy = rel * g->speed * MAX_VY_RATIO;
-    float vx = sqrtf(g->speed * g->speed - vy * vy);
-    g->bvx = (float)dir * vx;
-    g->bvy = vy;
-    g->speed += 0.3f;
-    if (g->speed > BALL_SPEED_MAX)
-        g->speed = BALL_SPEED_MAX;
+    (void)scene;
+    int w = tge_canvas_width(canvas);
+    int h = tge_canvas_height(canvas);
+    const char *title = " PONG ";
+    const char *controls = " P1: W/S  P2: Up/Down  P: pause ";
+    const char *start = " [ENTER] to start  [Q] to quit ";
+
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_DEFAULT);
+}
+
+static void title_event(TGE_Scene *scene, TGE_Event *ev)
+{
+    (void)scene;
+    bool enter = false;
+    bool quit = false;
+    if (ev->type == TGE_EVENT_TEXT) {
+        if (ev->data.text.codepoint == 13) {
+            enter = true;
+        } else if (ev->data.text.codepoint == 'q' ||
+                   ev->data.text.codepoint == 'Q') {
+            quit = true;
+        }
+    } else if (ev->type == TGE_EVENT_KEYDOWN) {
+        if (ev->data.key.keycode == TGE_KEY_ENTER) {
+            enter = true;
+        } else if (ev->data.key.keycode == TGE_KEY_ESC) {
+            quit = true;
+        }
+    }
+    if (quit) {
+        TGE_Quit(g_app);
+        return;
+    }
+    if (enter)
+        TGE_PushScene(g_app, &g_game);
 }
 
 static void game_init(TGE_Scene *scene)
@@ -195,60 +236,60 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
 
-    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
 
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
 
     char buf[16];
-    tge_printf(canvas, 2, 0, TGE_COLOR_GREEN, TGE_COLOR_BLACK, " P1: %d ",
+    tge_printf(canvas, 2, 0, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT, " P1: %d ",
                g->score1);
     snprintf(buf, sizeof(buf), " %d: P2 ", g->score2);
     tge_draw_text(canvas, w - 2 - (int)strlen(buf), 0, buf, TGE_COLOR_RED,
-                  TGE_COLOR_BLACK);
+                  TGE_COLOR_DEFAULT);
 
     for (int y = 2; y < h - 2; y += 2)
-        tge_set_cell(canvas, w / 2, y, '|', TGE_COLOR_BLUE, TGE_COLOR_BLACK);
+        tge_set_cell(canvas, w / 2, y, '|', TGE_COLOR_BLUE, TGE_COLOR_DEFAULT);
 
     for (int i = 0; i < PADDLE_H; i++) {
         tge_set_cell(canvas, 2, (int)g->p1y + i, 0x2588, TGE_COLOR_GREEN,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
         tge_set_cell(canvas, w - 3, (int)g->p2y + i, 0x2588, TGE_COLOR_RED,
-                     TGE_COLOR_BLACK);
+                     TGE_COLOR_DEFAULT);
     }
 
     if (g->state == STATE_RUNNING || g->state == STATE_COUNTDOWN) {
         int bx = (int)(g->bx + 0.5f);
         int by = (int)(g->by + 0.5f);
-        tge_set_cell(canvas, bx, by, 'o', TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+        tge_set_cell(canvas, bx, by, 'o', TGE_COLOR_WHITE, TGE_COLOR_DEFAULT);
     }
 
     if (g->state == STATE_COUNTDOWN) {
         char n[2] = { (char)('0' + g->countdown), '\0' };
         tge_draw_text(canvas, w / 2, h / 2, n, TGE_COLOR_YELLOW,
-                      TGE_COLOR_BLACK);
+                      TGE_COLOR_DEFAULT);
     } else if (g->state == STATE_RUNNING && g->go_flash > 0.0f) {
         tge_draw_centered_text(canvas, h / 2, " GO! ", TGE_COLOR_YELLOW,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     }
 
     if (g->state == STATE_OVER) {
         const char *msg = (g->score1 >= WIN_SCORE) ? " PLAYER 1 WINS "
                                                    : " PLAYER 2 WINS ";
         const char *again = " [ENTER] rematch  [ESC] menu ";
-        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 - 1, msg, TGE_COLOR_YELLOW,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     } else if (g->paused) {
         const char *again = " [P] resume ";
-        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
+        tge_fill_rect(canvas, 1, h / 2 - 1, w - 2, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 - 1, " PAUSED ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
+                               TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
         tge_draw_centered_text(canvas, h / 2 + 1, again, TGE_COLOR_WHITE,
-                               TGE_COLOR_BLACK);
+                               TGE_COLOR_DEFAULT);
     }
 }
 
@@ -323,77 +364,47 @@ static void game_event(TGE_Scene *scene, TGE_Event *ev)
     }
 }
 
-static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+static void start_serve(Pong *g)
 {
-    (void)scene;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    const char *title = " PONG ";
-    const char *controls = " P1: W/S  P2: Up/Down  P: pause ";
-    const char *start = " [ENTER] to start  [Q] to quit ";
-
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 - 2, title, TGE_COLOR_GREEN,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2, controls, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 2, start, TGE_COLOR_YELLOW,
-                           TGE_COLOR_BLACK);
+    TGE_Runtime *rt = TGE_GetRuntime(g_app);
+    if (g->cd_timer >= 0)
+        tge_runtime_cancel_scheduled(rt, g->cd_timer);
+    g->bx = (float)WIN_W / 2.0f;
+    g->by = (float)WIN_H / 2.0f;
+    g->state = STATE_COUNTDOWN;
+    g->countdown = 3;
+    g->go_flash = 0.0f;
+    g->bvx = 0.0f;
+    g->bvy = 0.0f;
+    g->cd_timer = tge_runtime_call_every(rt, 1.0, TMR_COUNTDOWN,
+                                         TGE_TIMER_NORMAL);
 }
 
-static void title_event(TGE_Scene *scene, TGE_Event *ev)
+static void restart_match(Pong *g)
 {
-    (void)scene;
-    bool enter = false;
-    bool quit = false;
-    if (ev->type == TGE_EVENT_TEXT) {
-        if (ev->data.text.codepoint == 13) {
-            enter = true;
-        } else if (ev->data.text.codepoint == 'q' ||
-                   ev->data.text.codepoint == 'Q') {
-            quit = true;
-        }
-    } else if (ev->type == TGE_EVENT_KEYDOWN) {
-        if (ev->data.key.keycode == TGE_KEY_ENTER) {
-            enter = true;
-        } else if (ev->data.key.keycode == TGE_KEY_ESC) {
-            quit = true;
-        }
-    }
-    if (quit) {
-        TGE_Quit(g_app);
-        return;
-    }
-    if (enter)
-        TGE_PushScene(g_app, &g_game);
+    g->score1 = 0;
+    g->score2 = 0;
+    g->paused = false;
+    g->p1y = (float)(WIN_H - PADDLE_H) / 2.0f;
+    g->p2y = (float)(WIN_H - PADDLE_H) / 2.0f;
+    g->speed = BALL_SPEED;
+    g->serve_dir = (rand() % 2) ? 1 : -1;
+    start_serve(g);
 }
 
-static void init_app(TGE_App *app)
+static void reflect(Pong *g, int dir)
 {
-    g_app = app;
-
-    memset(&g_menu, 0, sizeof(g_menu));
-    g_menu.opaque = false;
-    g_menu.draw = title_draw;
-    g_menu.event = title_event;
-
-    memset(&g_game, 0, sizeof(g_game));
-    g_game.opaque = true;
-    g_game.userdata = &g_pong;
-    g_game.init = game_init;
-    g_game.update = game_update;
-    g_game.draw = game_draw;
-    g_game.event = game_event;
-
-    TGE_PushScene(app, &g_menu);
-}
-
-int main(void)
-{
-    TGE_App *app = TGE_Create(WIN_W, WIN_H, "TGE Pong");
-    if (!app)
-        return 1;
-    TGE_Run(app, init_app, NULL, NULL, NULL);
-    TGE_Destroy(app);
-    return 0;
+    float py = (dir < 0) ? g->p2y : g->p1y;
+    float rel = (g->by - (py + PADDLE_H / 2.0f)) / (PADDLE_H / 2.0f);
+    if (rel > 1.0f)
+        rel = 1.0f;
+    else if (rel < -1.0f)
+        rel = -1.0f;
+    float vy = rel * g->speed * MAX_VY_RATIO;
+    float vx = sqrtf(g->speed * g->speed - vy * vy);
+    g->bvx = (float)dir * vx;
+    g->bvy = vy;
+    g->speed += 0.3f;
+    if (g->speed > BALL_SPEED_MAX)
+        g->speed = BALL_SPEED_MAX;
 }

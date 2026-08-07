@@ -33,7 +33,7 @@ int main(void)
         for (int i = 0; i < W * H; i++) {
             buf[i].ch = ' ';
             buf[i].fg = TGE_COLOR_BLACK;
-            buf[i].bg = TGE_COLOR_BLACK;
+            buf[i].bg = TGE_COLOR_DEFAULT;
             buf[i].attr = 0;
         }
         for (int x = 0; x < W; x++) {

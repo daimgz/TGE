@@ -9,12 +9,12 @@ static void draw(TGE_App *app, TGE_Canvas *canvas)
     (void)app;
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
     tge_draw_text(canvas, 2, 1, "input - press keys and arrows",
-                  TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_draw_text(canvas, 2, 3, info, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
+                  TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+    tge_draw_text(canvas, 2, 3, info, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
     tge_draw_text(canvas, 2, h - 2, "[ESC] quit", TGE_COLOR_MAGENTA,
-                  TGE_COLOR_BLACK);
+                  TGE_COLOR_DEFAULT);
 }
 
 static void on_event(TGE_App *app, TGE_Event *ev)

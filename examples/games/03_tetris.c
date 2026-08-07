@@ -64,16 +64,6 @@ typedef struct {
     uint8_t color;
 } Tetromino;
 
-static const Tetromino kPieces[7] = {
-    { 4, { {0,0,0,0}, {1,1,1,1}, {0,0,0,0}, {0,0,0,0} }, 0, 6 },
-    { 2, { {1,1,0,0}, {1,1,0,0}, {0,0,0,0}, {0,0,0,0} }, 1, 3 },
-    { 3, { {0,1,0,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 2, 5 },
-    { 3, { {0,1,1,0}, {1,1,0,0}, {0,0,0,0}, {0,0,0,0} }, 3, 2 },
-    { 3, { {1,1,0,0}, {0,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 4, 1 },
-    { 3, { {1,0,0,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 5, 4 },
-    { 3, { {0,0,1,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 6, 7 },
-};
-
 typedef struct {
     int board[ROWS][COLS];
     Tetromino cur;
@@ -100,6 +90,272 @@ typedef struct {
     TGE_Grid board;   /* origin (OX, OY) */
     TGE_Grid preview; /* origin (24, 2), NEXT box */
 } TetrisRenderer;
+
+/* The game as a whole: the world (rules) + the renderer (screen), wired
+ * together by the scene callbacks. */
+typedef struct {
+    Tetris world;
+    TetrisRenderer renderer;
+} TetrisGame;
+
+static const Tetromino kPieces[7] = {
+    { 4, { {0,0,0,0}, {1,1,1,1}, {0,0,0,0}, {0,0,0,0} }, 0, 6 },
+    { 2, { {1,1,0,0}, {1,1,0,0}, {0,0,0,0}, {0,0,0,0} }, 1, 3 },
+    { 3, { {0,1,0,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 2, 5 },
+    { 3, { {0,1,1,0}, {1,1,0,0}, {0,0,0,0}, {0,0,0,0} }, 3, 2 },
+    { 3, { {1,1,0,0}, {0,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 4, 1 },
+    { 3, { {1,0,0,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 5, 4 },
+    { 3, { {0,0,1,0}, {1,1,1,0}, {0,0,0,0}, {0,0,0,0} }, 6, 7 },
+};
+
+static TGE_App *g_app = NULL;
+
+static void init_app(TGE_App *app);
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void title_event(TGE_Scene *scene, TGE_Event *ev);
+static void game_update(TGE_Scene *scene, float dt);
+static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas);
+static void game_event(TGE_Scene *scene, TGE_Event *ev);
+static void renderer_init(TetrisRenderer *r);
+static void renderer_attach(TetrisRenderer *r, TGE_Canvas *canvas);
+static void renderer_draw_board(TetrisRenderer *r, const Tetris *t);
+static void renderer_draw_piece(TetrisRenderer *r, const Tetris *t);
+static void renderer_draw_next(TetrisRenderer *r, const Tetris *t);
+static void tetris_game_init(TetrisGame *g);
+static void tetris_resize(Tetris *t, int w, int h);
+static void reset(Tetris *t);
+static void move_cur(Tetris *t, int dx);
+static void try_rotate(Tetris *t);
+static void rotate_pressed(Tetris *t);
+static void hard_drop(Tetris *t);
+static void soft_drop(Tetris *t);
+static void gravity_step(Tetris *t);
+static void rotate_cw(Tetromino *p);
+static int fits_shape(const Tetromino *p, const Tetris *t, TGE_Vec2i pos);
+static int fits(Tetris *t, TGE_Vec2i pos);
+static float gravity_interval(int level);
+static void set_gravity(Tetris *t);
+static void game_over(Tetris *t);
+static void clear_lines(Tetris *t);
+static void spawn(Tetris *t);
+static void lock(Tetris *t);
+
+int main(void)
+{
+    /* Requested size is the minimum/fallback: the core starts with the real
+     * terminal size when it can query it (TIOCGWINSZ). */
+    TGE_App *app = TGE_Create(MIN_FW + 2, MIN_FH + 2, "TGE Tetris");
+    if (!app)
+        return 1;
+    TGE_Run(app, init_app, NULL, NULL, NULL);
+    TGE_Destroy(app);
+    return 0;
+}
+
+static void init_app(TGE_App *app)
+{
+    g_app = app;
+    TGE_Scene *menu = NULL;
+    tge_scene_create(&menu, 0, NULL, title_draw, title_event, NULL);
+    menu->opaque = false;
+    TGE_PushScene(app, menu);
+}
+
+static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+{
+    (void)scene;
+    int w = tge_canvas_width(canvas);
+    int h = tge_canvas_height(canvas);
+    const char *title = " TETRIS ";
+    const char *c1 = " Move: Left/Right   Rotate: W/Up ";
+    const char *c2 = " Down: soft drop    Space: hard drop ";
+    const char *start = " [ENTER] to start  [Q] to quit ";
+
+    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 - 3, title, TGE_COLOR_GREEN,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2, c1, TGE_COLOR_WHITE,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 + 1, c2, TGE_COLOR_WHITE,
+                           TGE_COLOR_DEFAULT);
+    tge_draw_centered_text(canvas, h / 2 + 3, start, TGE_COLOR_YELLOW,
+                           TGE_COLOR_DEFAULT);
+}
+
+static void title_event(TGE_Scene *scene, TGE_Event *ev)
+{
+    (void)scene;
+    bool enter = false;
+    bool quit = false;
+    if (ev->type == TGE_EVENT_TEXT) {
+        if (ev->data.text.codepoint == 13) {
+            enter = true;
+        } else if (ev->data.text.codepoint == 'q' ||
+                   ev->data.text.codepoint == 'Q') {
+            quit = true;
+        }
+    } else if (ev->type == TGE_EVENT_KEYDOWN) {
+        if (ev->data.key.keycode == TGE_KEY_ENTER) {
+            enter = true;
+        } else if (ev->data.key.keycode == TGE_KEY_ESC) {
+            quit = true;
+        }
+    }
+    if (quit) {
+        TGE_Quit(g_app);
+        return;
+    }
+    if (enter) {
+        TGE_Scene *game = NULL;
+        TetrisGame *g = (TetrisGame *)tge_scene_create(
+            &game, sizeof(TetrisGame), game_update, game_draw, game_event,
+            NULL);
+        tetris_game_init(g);
+        TGE_PushScene(g_app, game);
+    }
+}
+
+static void game_update(TGE_Scene *scene, float dt)
+{
+    TetrisGame *g = (TetrisGame *)scene->userdata;
+    if (g->world.paused)
+        return;
+    tge_timer_update(&g->world.rot, dt);
+}
+
+static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+{
+    TetrisGame *g = (TetrisGame *)scene->userdata;
+    Tetris *t = &g->world;
+    int w = tge_canvas_width(canvas);
+    int h = tge_canvas_height(canvas);
+
+    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
+
+    /* Layout is computed once here (the initial size never fires a RESIZE
+     * event) and afterwards only on TGE_EVENT_RESIZE. */
+    if (t->last_w < 0)
+        tetris_resize(t, w, h);
+
+    if (!t->view.valid) {
+        tge_draw_centered_text(canvas, h / 2, " too small ",
+                               TGE_COLOR_RED, TGE_COLOR_DEFAULT);
+        return;
+    }
+
+    renderer_attach(&g->renderer, canvas);
+
+    tge_draw_frame(canvas, OX - 1, OY - 1, COLS * 2 + 2, ROWS + 2,
+                   TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+
+    renderer_draw_board(&g->renderer, &g->world);
+    renderer_draw_piece(&g->renderer, &g->world);
+    renderer_draw_next(&g->renderer, &g->world);
+
+    tge_draw_text(canvas, 25, 1, " NEXT ", TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+    tge_draw_frame(canvas, 24, 2, 10, 5, TGE_COLOR_BLUE, TGE_COLOR_DEFAULT);
+
+    tge_draw_text(canvas, 25, 9, " SCORE ", TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+    tge_printf(canvas, 25, 10, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT, "%6d",
+               g->world.score);
+    tge_draw_text(canvas, 25, 12, " LEVEL ", TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+    tge_printf(canvas, 25, 13, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT, "%6d",
+               g->world.level);
+    tge_draw_text(canvas, 25, 15, " LINES ", TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+    tge_printf(canvas, 25, 16, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT, "%6d",
+               g->world.lines);
+
+    const char *controls = " <-> move  W/Up rot  Space drop  P pause  ESC ";
+    tge_draw_text(canvas, 1, h - 1, controls, TGE_COLOR_GREEN, TGE_COLOR_DEFAULT);
+
+    if (g->world.state == STATE_OVER) {
+        const char *msg = " GAME OVER ";
+        const char *again = " [ENTER] retry  [ESC] menu ";
+        tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, msg,
+                               TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
+                               TGE_COLOR_WHITE, TGE_COLOR_DEFAULT);
+    } else if (g->world.paused) {
+        const char *again = " [P] resume ";
+        tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_DEFAULT,
+                      TGE_COLOR_DEFAULT);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, " PAUSED ",
+                               TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
+        tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
+                               TGE_COLOR_WHITE, TGE_COLOR_DEFAULT);
+    }
+}
+
+static void game_event(TGE_Scene *scene, TGE_Event *ev)
+{
+    TetrisGame *g = (TetrisGame *)scene->userdata;
+    Tetris *t = &g->world;
+
+    if (ev->type == TGE_EVENT_RESIZE) {
+        tetris_resize(t, ev->data.resize.w, ev->data.resize.h);
+        if (t->state != STATE_OVER)
+            t->paused = true;
+        return;
+    }
+    if (ev->type == TGE_EVENT_TEXT &&
+        (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
+        if (t->state != STATE_OVER)
+            t->paused = !t->paused;
+        return;
+    }
+    if (t->paused &&
+        !(ev->type == TGE_EVENT_KEYDOWN &&
+          ev->data.key.keycode == TGE_KEY_ESC))
+        return;
+    if (ev->type == TGE_EVENT_TEXT) {
+        uint32_t cp = ev->data.text.codepoint;
+        if (cp == 'w' || cp == 'W') {
+            rotate_pressed(t);
+        } else if (cp == ' ') {
+            if (t->state == STATE_PLAYING)
+                hard_drop(t);
+        }
+    } else if (ev->type == TGE_EVENT_KEYDOWN) {
+        switch (ev->data.key.keycode) {
+        case TGE_KEY_LEFT:
+            move_cur(t, -1);
+            break;
+        case TGE_KEY_RIGHT:
+            move_cur(t, 1);
+            break;
+        case TGE_KEY_DOWN:
+            if (t->state == STATE_PLAYING)
+                soft_drop(t);
+            break;
+        case TGE_KEY_UP:
+            rotate_pressed(t);
+            break;
+        case TGE_KEY_SPACE:
+            if (t->state == STATE_PLAYING)
+                hard_drop(t);
+            break;
+        case TGE_KEY_ENTER:
+            if (t->state == STATE_OVER)
+                reset(t);
+            break;
+        case TGE_KEY_ESC:
+            if (t->gravity_timer >= 0)
+                tge_runtime_cancel_scheduled(TGE_GetRuntime(g_app),
+                                             t->gravity_timer);
+            t->gravity_timer = -1;
+            TGE_PopScene(g_app);
+            break;
+        default:
+            break;
+        }
+    } else if (ev->type == TGE_EVENT_TIMER &&
+               ev->data.timer.id == TMR_GRAVITY) {
+        if (t->view.valid && !t->paused)
+            gravity_step(t);
+    }
+}
 
 static void renderer_init(TetrisRenderer *r)
 {
@@ -128,7 +384,7 @@ static void renderer_draw_board(TetrisRenderer *r, const Tetris *t)
                 tge_grid_set_cell(&r->board, x, y,
                                   tge_color_indexed(
                                       kPieces[t->board[y][x] - 1].color),
-                                  TGE_COLOR_BLACK);
+                                  TGE_COLOR_DEFAULT);
 }
 
 static void renderer_draw_piece(TetrisRenderer *r, const Tetris *t)
@@ -138,7 +394,7 @@ static void renderer_draw_piece(TetrisRenderer *r, const Tetris *t)
         for (int x = 0; x < t->cur.n; x++)
             if (t->cur.cells[y][x])
                 tge_grid_set_cell(&r->board, t->pos.x + x, t->pos.y + y, col,
-                                  TGE_COLOR_BLACK);
+                                  TGE_COLOR_DEFAULT);
 }
 
 static void renderer_draw_next(TetrisRenderer *r, const Tetris *t)
@@ -151,17 +407,127 @@ static void renderer_draw_next(TetrisRenderer *r, const Tetris *t)
             if (nx->cells[y][x])
                 tge_grid_set_cell(&r->preview, npx + x, npy + y,
                                   tge_color_indexed(nx->color),
-                                  TGE_COLOR_BLACK);
+                                  TGE_COLOR_DEFAULT);
 }
 
-/* The game as a whole: the world (rules) + the renderer (screen), wired
- * together by the scene callbacks. */
-typedef struct {
-    Tetris world;
-    TetrisRenderer renderer;
-} TetrisGame;
+/* One-shot constructor for a fresh game: permanent renderer geometry plus a
+ * reset world. Kept together so future game/renderer state has a single
+ * setup point. */
+static void tetris_game_init(TetrisGame *g)
+{
+    renderer_init(&g->renderer);
+    g->world.gravity_timer = -1;
+    g->world.last_w = -1;
+    g->world.last_h = -1;
+    tge_view_init(&g->world.view, MIN_FW, MIN_FH);
+    reset(&g->world);
+}
 
-static TGE_App *g_app = NULL;
+/* Recompute the playfield gate for a new surface size. The board is a fixed
+ * 10x20 so there is nothing to clamp on resize: FIRST_VALID starts a fresh
+ * game, RESIZED keeps it running, INVALID shows "too small". */
+static void tetris_resize(Tetris *t, int w, int h)
+{
+    t->last_w = w;
+    t->last_h = h;
+    switch (tge_view_update(&t->view, w, h)) {
+    case TGE_VIEW_FIRST_VALID:
+        reset(t);
+        break;
+    case TGE_VIEW_RESIZED:
+    case TGE_VIEW_INVALID:
+    default:
+        break;
+    }
+}
+
+static void reset(Tetris *t)
+{
+    memset(t->board, 0, sizeof(t->board));
+    t->score = 0;
+    t->level = 1;
+    t->lines = 0;
+    t->state = STATE_PLAYING;
+    t->paused = false;
+    t->next = rand() % 7;
+    tge_timer_init(&t->rot, ROTATE_DEBOUNCE);
+    /* Preload the cooldown so the very first rotation after a reset is
+     * immediate (the old `last_rotate = -ROTATE_DEBOUNCE` did the same). */
+    tge_timer_update(&t->rot, ROTATE_DEBOUNCE);
+    set_gravity(t);
+    spawn(t);
+}
+
+static void move_cur(Tetris *t, int dx)
+{
+    if (t->state != STATE_PLAYING)
+        return;
+    TGE_Vec2i np = tge_vec2i_add(t->pos, tge_vec2i(dx, 0));
+    if (fits(t, np))
+        t->pos = np;
+}
+
+static void try_rotate(Tetris *t)
+{
+    if (t->state != STATE_PLAYING)
+        return;
+    Tetromino rot = t->cur;
+    rotate_cw(&rot);
+    static const int kicks[5] = { 0, -1, 1, -2, 2 };
+    for (int i = 0; i < 5; i++) {
+        TGE_Vec2i np = tge_vec2i_add(t->pos, tge_vec2i(kicks[i], 0));
+        if (fits_shape(&rot, t, np)) {
+            t->cur = rot;
+            t->pos = np;
+            return;
+        }
+    }
+}
+
+/* Classic cooldown: at most one rotation every ROTATE_DEBOUNCE seconds no
+ * matter how fast the key repeats. The previous version used a sliding
+ * window where each press restarted the wait; the cooldown is simpler and
+ * is what a player expects. */
+static void rotate_pressed(Tetris *t)
+{
+    if (t->state != STATE_PLAYING)
+        return;
+    if (!tge_timer_tick(&t->rot))
+        return;
+    tge_timer_reset(&t->rot);
+    try_rotate(t);
+}
+
+static void hard_drop(Tetris *t)
+{
+    if (t->state != STATE_PLAYING)
+        return;
+    TGE_Vec2i np = t->pos;
+    while (fits(t, tge_vec2i_add(np, tge_vec2i(0, 1))))
+        np = tge_vec2i_add(np, tge_vec2i(0, 1));
+    int d = np.y - t->pos.y;
+    t->pos = np;
+    t->score += 2 * d;
+    lock(t);
+}
+
+static void soft_drop(Tetris *t)
+{
+    if (fits(t, tge_vec2i_add(t->pos, tge_vec2i(0, 1)))) {
+        t->pos.y++;
+        t->score++;
+    }
+}
+
+static void gravity_step(Tetris *t)
+{
+    if (t->state != STATE_PLAYING)
+        return;
+    if (fits(t, tge_vec2i_add(t->pos, tge_vec2i(0, 1))))
+        t->pos.y++;
+    else
+        lock(t);
+}
 
 static void rotate_cw(Tetromino *p)
 {
@@ -265,340 +631,4 @@ static void lock(Tetris *t)
     clear_lines(t);
     if (t->state == STATE_PLAYING)
         spawn(t);
-}
-
-static void reset(Tetris *t)
-{
-    memset(t->board, 0, sizeof(t->board));
-    t->score = 0;
-    t->level = 1;
-    t->lines = 0;
-    t->state = STATE_PLAYING;
-    t->paused = false;
-    t->next = rand() % 7;
-    tge_timer_init(&t->rot, ROTATE_DEBOUNCE);
-    /* Preload the cooldown so the very first rotation after a reset is
-     * immediate (the old `last_rotate = -ROTATE_DEBOUNCE` did the same). */
-    tge_timer_update(&t->rot, ROTATE_DEBOUNCE);
-    set_gravity(t);
-    spawn(t);
-}
-
-/* Recompute the playfield gate for a new surface size. The board is a fixed
- * 10x20 so there is nothing to clamp on resize: FIRST_VALID starts a fresh
- * game, RESIZED keeps it running, INVALID shows "too small". */
-static void tetris_resize(Tetris *t, int w, int h)
-{
-    t->last_w = w;
-    t->last_h = h;
-    switch (tge_view_update(&t->view, w, h)) {
-    case TGE_VIEW_FIRST_VALID:
-        reset(t);
-        break;
-    case TGE_VIEW_RESIZED:
-    case TGE_VIEW_INVALID:
-    default:
-        break;
-    }
-}
-
-/* One-shot constructor for a fresh game: permanent renderer geometry plus a
- * reset world. Kept together so future game/renderer state has a single
- * setup point. */
-static void tetris_game_init(TetrisGame *g)
-{
-    renderer_init(&g->renderer);
-    g->world.gravity_timer = -1;
-    g->world.last_w = -1;
-    g->world.last_h = -1;
-    tge_view_init(&g->world.view, MIN_FW, MIN_FH);
-    reset(&g->world);
-}
-
-static void move_cur(Tetris *t, int dx)
-{
-    if (t->state != STATE_PLAYING)
-        return;
-    TGE_Vec2i np = tge_vec2i_add(t->pos, tge_vec2i(dx, 0));
-    if (fits(t, np))
-        t->pos = np;
-}
-
-static void try_rotate(Tetris *t)
-{
-    if (t->state != STATE_PLAYING)
-        return;
-    Tetromino rot = t->cur;
-    rotate_cw(&rot);
-    static const int kicks[5] = { 0, -1, 1, -2, 2 };
-    for (int i = 0; i < 5; i++) {
-        TGE_Vec2i np = tge_vec2i_add(t->pos, tge_vec2i(kicks[i], 0));
-        if (fits_shape(&rot, t, np)) {
-            t->cur = rot;
-            t->pos = np;
-            return;
-        }
-    }
-}
-
-/* Classic cooldown: at most one rotation every ROTATE_DEBOUNCE seconds no
- * matter how fast the key repeats. The previous version used a sliding
- * window where each press restarted the wait; the cooldown is simpler and
- * is what a player expects. */
-static void rotate_pressed(Tetris *t)
-{
-    if (t->state != STATE_PLAYING)
-        return;
-    if (!tge_timer_tick(&t->rot))
-        return;
-    tge_timer_reset(&t->rot);
-    try_rotate(t);
-}
-
-static void hard_drop(Tetris *t)
-{
-    if (t->state != STATE_PLAYING)
-        return;
-    TGE_Vec2i np = t->pos;
-    while (fits(t, tge_vec2i_add(np, tge_vec2i(0, 1))))
-        np = tge_vec2i_add(np, tge_vec2i(0, 1));
-    int d = np.y - t->pos.y;
-    t->pos = np;
-    t->score += 2 * d;
-    lock(t);
-}
-
-static void soft_drop(Tetris *t)
-{
-    if (fits(t, tge_vec2i_add(t->pos, tge_vec2i(0, 1)))) {
-        t->pos.y++;
-        t->score++;
-    }
-}
-
-static void gravity_step(Tetris *t)
-{
-    if (t->state != STATE_PLAYING)
-        return;
-    if (fits(t, tge_vec2i_add(t->pos, tge_vec2i(0, 1))))
-        t->pos.y++;
-    else
-        lock(t);
-}
-
-static void game_update(TGE_Scene *scene, float dt)
-{
-    TetrisGame *g = (TetrisGame *)scene->userdata;
-    if (g->world.paused)
-        return;
-    tge_timer_update(&g->world.rot, dt);
-}
-
-static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
-{
-    TetrisGame *g = (TetrisGame *)scene->userdata;
-    Tetris *t = &g->world;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-
-    tge_fill_rect(canvas, 0, 0, w, h, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
-
-    /* Layout is computed once here (the initial size never fires a RESIZE
-     * event) and afterwards only on TGE_EVENT_RESIZE. */
-    if (t->last_w < 0)
-        tetris_resize(t, w, h);
-
-    if (!t->view.valid) {
-        tge_draw_centered_text(canvas, h / 2, " too small ",
-                               TGE_COLOR_RED, TGE_COLOR_BLACK);
-        return;
-    }
-
-    renderer_attach(&g->renderer, canvas);
-
-    tge_draw_frame(canvas, OX - 1, OY - 1, COLS * 2 + 2, ROWS + 2,
-                   TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-
-    renderer_draw_board(&g->renderer, &g->world);
-    renderer_draw_piece(&g->renderer, &g->world);
-    renderer_draw_next(&g->renderer, &g->world);
-
-    tge_draw_text(canvas, 25, 1, " NEXT ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_draw_frame(canvas, 24, 2, 10, 5, TGE_COLOR_BLUE, TGE_COLOR_BLACK);
-
-    tge_draw_text(canvas, 25, 9, " SCORE ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_printf(canvas, 25, 10, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
-               g->world.score);
-    tge_draw_text(canvas, 25, 12, " LEVEL ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_printf(canvas, 25, 13, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
-               g->world.level);
-    tge_draw_text(canvas, 25, 15, " LINES ", TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-    tge_printf(canvas, 25, 16, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "%6d",
-               g->world.lines);
-
-    const char *controls = " <-> move  W/Up rot  Space drop  P pause  ESC ";
-    tge_draw_text(canvas, 1, h - 1, controls, TGE_COLOR_GREEN, TGE_COLOR_BLACK);
-
-    if (g->world.state == STATE_OVER) {
-        const char *msg = " GAME OVER ";
-        const char *again = " [ENTER] retry  [ESC] menu ";
-        tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, msg,
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
-                               TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    } else if (g->world.paused) {
-        const char *again = " [P] resume ";
-        tge_fill_rect(canvas, 0, OY + ROWS / 2 - 1, w, 3, ' ', TGE_COLOR_BLACK,
-                      TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, OY + ROWS / 2 - 1, " PAUSED ",
-                               TGE_COLOR_YELLOW, TGE_COLOR_BLACK);
-        tge_draw_centered_text(canvas, OY + ROWS / 2 + 1, again,
-                               TGE_COLOR_WHITE, TGE_COLOR_BLACK);
-    }
-}
-
-static void game_event(TGE_Scene *scene, TGE_Event *ev)
-{
-    TetrisGame *g = (TetrisGame *)scene->userdata;
-    Tetris *t = &g->world;
-
-    if (ev->type == TGE_EVENT_RESIZE) {
-        tetris_resize(t, ev->data.resize.w, ev->data.resize.h);
-        if (t->state != STATE_OVER)
-            t->paused = true;
-        return;
-    }
-    if (ev->type == TGE_EVENT_TEXT &&
-        (ev->data.text.codepoint == 'p' || ev->data.text.codepoint == 'P')) {
-        if (t->state != STATE_OVER)
-            t->paused = !t->paused;
-        return;
-    }
-    if (t->paused &&
-        !(ev->type == TGE_EVENT_KEYDOWN &&
-          ev->data.key.keycode == TGE_KEY_ESC))
-        return;
-    if (ev->type == TGE_EVENT_TEXT) {
-        uint32_t cp = ev->data.text.codepoint;
-        if (cp == 'w' || cp == 'W') {
-            rotate_pressed(t);
-        } else if (cp == ' ') {
-            if (t->state == STATE_PLAYING)
-                hard_drop(t);
-        }
-    } else if (ev->type == TGE_EVENT_KEYDOWN) {
-        switch (ev->data.key.keycode) {
-        case TGE_KEY_LEFT:
-            move_cur(t, -1);
-            break;
-        case TGE_KEY_RIGHT:
-            move_cur(t, 1);
-            break;
-        case TGE_KEY_DOWN:
-            if (t->state == STATE_PLAYING)
-                soft_drop(t);
-            break;
-        case TGE_KEY_UP:
-            rotate_pressed(t);
-            break;
-        case TGE_KEY_SPACE:
-            if (t->state == STATE_PLAYING)
-                hard_drop(t);
-            break;
-        case TGE_KEY_ENTER:
-            if (t->state == STATE_OVER)
-                reset(t);
-            break;
-        case TGE_KEY_ESC:
-            if (t->gravity_timer >= 0)
-                tge_runtime_cancel_scheduled(TGE_GetRuntime(g_app),
-                                             t->gravity_timer);
-            t->gravity_timer = -1;
-            TGE_PopScene(g_app);
-            break;
-        default:
-            break;
-        }
-    } else if (ev->type == TGE_EVENT_TIMER &&
-               ev->data.timer.id == TMR_GRAVITY) {
-        if (t->view.valid && !t->paused)
-            gravity_step(t);
-    }
-}
-
-static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
-{
-    (void)scene;
-    int w = tge_canvas_width(canvas);
-    int h = tge_canvas_height(canvas);
-    const char *title = " TETRIS ";
-    const char *c1 = " Move: Left/Right   Rotate: W/Up ";
-    const char *c2 = " Down: soft drop    Space: hard drop ";
-    const char *start = " [ENTER] to start  [Q] to quit ";
-
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 - 3, title, TGE_COLOR_GREEN,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2, c1, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 1, c2, TGE_COLOR_WHITE,
-                           TGE_COLOR_BLACK);
-    tge_draw_centered_text(canvas, h / 2 + 3, start, TGE_COLOR_YELLOW,
-                           TGE_COLOR_BLACK);
-}
-
-static void title_event(TGE_Scene *scene, TGE_Event *ev)
-{
-    (void)scene;
-    bool enter = false;
-    bool quit = false;
-    if (ev->type == TGE_EVENT_TEXT) {
-        if (ev->data.text.codepoint == 13) {
-            enter = true;
-        } else if (ev->data.text.codepoint == 'q' ||
-                   ev->data.text.codepoint == 'Q') {
-            quit = true;
-        }
-    } else if (ev->type == TGE_EVENT_KEYDOWN) {
-        if (ev->data.key.keycode == TGE_KEY_ENTER) {
-            enter = true;
-        } else if (ev->data.key.keycode == TGE_KEY_ESC) {
-            quit = true;
-        }
-    }
-    if (quit) {
-        TGE_Quit(g_app);
-        return;
-    }
-    if (enter) {
-        TGE_Scene *game = NULL;
-        TetrisGame *g = (TetrisGame *)tge_scene_create(
-            &game, sizeof(TetrisGame), game_update, game_draw, game_event,
-            NULL);
-        tetris_game_init(g);
-        TGE_PushScene(g_app, game);
-    }
-}
-
-static void init_app(TGE_App *app)
-{
-    g_app = app;
-    TGE_Scene *menu = NULL;
-    tge_scene_create(&menu, 0, NULL, title_draw, title_event, NULL);
-    menu->opaque = false;
-    TGE_PushScene(app, menu);
-}
-
-int main(void)
-{
-    /* Requested size is the minimum/fallback: the core starts with the real
-     * terminal size when it can query it (TIOCGWINSZ). */
-    TGE_App *app = TGE_Create(MIN_FW + 2, MIN_FH + 2, "TGE Tetris");
-    if (!app)
-        return 1;
-    TGE_Run(app, init_app, NULL, NULL, NULL);
-    TGE_Destroy(app);
-    return 0;
 }
