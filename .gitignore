@@ -50,6 +50,7 @@ examples/games/09_dungeon
 examples/games/10_map_editor
 examples/games/11_pacman
 examples/games/12_sokoban
+examples/games/13_minesweeper
 
 tests/test_grid_view
 tests/test_input_buffer
@@ -61,6 +62,7 @@ tests/test_ui
 tests/test_actor
 tests/test_pacman
 tests/test_sokoban
+tests/test_minesweeper
 tests/test_playfield
 tests/test_tilemap
 
