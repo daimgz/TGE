@@ -1160,7 +1160,9 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Fase 3b: `tge-extra/actor` (`TGE_Actor`: posición + sprite + colores + `tge_actor_draw`) con tests (test_actor) — los 4 fantasmas de Pac-Man son actores
 - [x] Fase 3b: `tge-extra/playfield` (encapsula View + GridView + Layout, el patrón de Snake/Breakout) con tests (test_playfield) — consumido por Pac-Man
 - [x] Fase 3b: `tge-extra/vec2i` gana `tge_vec2i_dist2` (distancia² para la IA de los fantasmas: el fantasma elige el vecino más cercano a su objetivo; la raíz cuadrada es un paso monótono que nunca se necesita), con tests
-- [x] Fase 3b: `11_pacman` jugable (Fase 3b del roadmap; validación de composición): laberinto data-driven 28×31 (roles pared/puerta/pellet/power/túnel), pacman con `input_buffer` (la dirección encolada es intención de giro, se aplica solo si la celda está libre), 4 fantasmas con IA chase/scatter por distancia² (tie-break U>L>D>R), frightened pseudoaleatorio determinista (xorshift por fantasma), estado `GHOST_EATEN` con vuelta a casa caminando, colisión por cruce de celdas, duraciones scatter 7s / chase 20s / frightened 7s, túnel con wrap, vidas/score/win/restart, todo sobre `TGE_Playfield` + `TGE_TileMap` + `TGE_Actor`; con tests (test_pacman)
+ - [x] Fase 3b: `11_pacman` jugable (Fase 3b del roadmap; validación de composición): laberinto data-driven 28×31 (roles pared/puerta/pellet/power/túnel), pacman con `input_buffer` (la dirección encolada es intención de giro, se aplica solo si la celda está libre), 4 fantasmas con IA chase/scatter por distancia² (tie-break U>L>D>R), frightened pseudoaleatorio determinista (xorshift por fantasma), estado `GHOST_EATEN` con vuelta a casa caminando, colisión por cruce de celdas, duraciones scatter 7s / chase 20s / frightened 7s, túnel con wrap, vidas/score/win/restart, todo sobre `TGE_Playfield` + `TGE_TileMap` + `TGE_Actor`; con tests (test_pacman)
+ - [x] Fase 3b: `12_sokoban` jugable (Fase 3b #09; `TileMap` como fuente de verdad mutable — empujar una caja cambia el rol de la celda; patrón `TGE_Playfield` sin `fixedstep` con movimiento event-driven por tecla; undo específico del juego; niveles ASCII data-driven). Valida composición sin módulos nuevos; con tests (test_sokoban)
+ - [x] Fase 3b: `13_minesweeper` jugable (Fase 3b #10; primer ejemplo que ejercita el mouse de verdad: `TGE_EVENT_MOUSE*` → `mouse_to_cell` → celda de grid, izquierdo=reveal / derecho=flag, con fallback de teclado; flood fill BFS acotado con marca `queued`; RNG determinista xorshift32 + Fisher-Yates; primer clic seguro que mueve la mina; `TileMap` como representación del estado visible, verdad lógica en `mine[][]`/`adj[][]`). Con tests (test_minesweeper, 37 asserts, 0 fallos)
 
 ---
 
@@ -1168,6 +1170,20 @@ representativos, asumiendo que las primitivas ya están validadas.
 
 El usuario pidió **anotar** esto antes de pasar a algo más urgente. No está
 bloqueado, solo diferido.
+
+> **Fase 3b cerrada en #10 (Sokoban + Minesweeper) — hecho (decisión del
+> usuario).** La segunda tanda de juegos validó las primitivas existentes de
+> `tge-extra` (`TileMap`, `Playfield`, `Actor`, mouse, event-driven); se cierra
+> en #10. Los ítems #11–#18 del roadmap (Roguelike, Bomberman, Tower Defense,
+> Conecta 4, 2048, Snake 2P, Sudoku, Laberintos) se **difieren**: cada uno
+> exige diseñar nuevos módulos (`tge-extra/fov`, `tge-extra/pathfinding`,
+> `tge-extra/noise`, `tge-extra/ai`) que hoy no existen. Pasan a una **etapa de
+> diseño de módulos algorítmicos** donde cada módulo se define por el problema
+> general que resuelve y por la API que merece entrar en `tge-extra`, no porque
+> Roguelike lo necesite. Se mantiene la regla de Fase 3b — *el módulo se
+> implementa cuando un juego lo pide, no antes* — así que no se escribe código
+> de esos módulos hasta que un ejemplo concreto lo demande. Ver también
+> `PLAN_ENTRENAMIENTO.md` (Estado de Fase 3b y nota de Fase 4).
 
 ### 1. Lifecycle de escenas en el core — **hecho (revisión 3)**
 

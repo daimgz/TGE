@@ -869,6 +869,23 @@ pide, no antes.**
 > (`TGE_Camera` del plan) y colisión por grid. Es el juego "resumen": toca
 > casi todo el motor a la vez.
 
+> **Estado: COMPLETADA (#08–#10).** La tanta validó las primitivas existentes
+> de `tge-extra`: #08 Pac-Man (`TGE_Playfield` + `TGE_Actor` + `TileMap`),
+> #09 Sokoban (`TileMap` como fuente de verdad mutable, `TGE_Playfield` sin
+> `fixedstep`, undo específico del juego) y #10 Minesweeper (mouse real,
+> conversión mouse→grid, flood fill BFS, RNG determinista, `TileMap` como
+> representación del estado visible). Con eso queda cubierta la validación de
+> `TGE_TileMap` / `TGE_Playfield` / mouse / event-driven entre los juegos.
+
+> **Corte limpio — #11–#18 diferidos.** Roguelike, Bomberman, Tower Defense,
+> Conecta 4, 2048, Snake 2P, Sudoku y Laberintos se difieren: cada uno exige
+> diseñar nueva infraestructura de `tge-extra` (FOV, Pathfinding, Noise, AI)
+> que hoy no existe, y eso cambia la naturaleza de la fase de "validar
+> primitivas" a "diseñar módulos". Pasan a una **etapa de diseño de módulos
+> algorítmicos** (ver Fase 4): cada módulo se define por el problema general
+> que resuelve y por la API que merece entrar en `tge-extra`, no porque
+> Roguelike lo necesite. Roguelike queda como integrador final, no como driver.
+
 ### Fase 4 — Extensiones opcionales
 
 | # | Módulo | Contenido |
@@ -878,6 +895,16 @@ pide, no antes.**
 | 21 | tge-extra/FOV | shadowcasting |
 | 22 | tge-extra/Pathfinding | A* sobre tilemap |
 | 23 | tge-extra/Noise | ruido Perlin/Simplex |
+
+> **Siguiente etapa: diseño de módulos algorítmicos.** FOV / Pathfinding /
+> Noise (y `AI` para Conecta 4) dejan de ser "extensiones opcionales" a
+> implementar por inercia y pasan a una fase de **diseño primero**: para cada
+> uno se documenta el problema general que resuelve (independiente de
+> Roguelike), la API pública propuesta y la casa en `tge-extra`, y el primer
+> consumidor que lo justificaría. Se sigue la regla de Fase 3b — *el módulo se
+> implementa cuando un juego lo pide, no antes* — así que no se escribe código
+> hasta que un ejemplo concreto lo demande. Roguelike es el integrador final,
+> no el driver de esta etapa.
 
 ---
 
