@@ -4,6 +4,7 @@
 #include "tge_internal.h"
 #include "tge_test.h"
 
+#include <stdarg.h>
 #include <string.h>
 
 static TGE_Canvas *make_canvas(int w, int h)
@@ -148,11 +149,35 @@ TGE_TEST(printf_truncates_and_clips)
     tge_canvas_destroy(c);
 }
 
+static void vprintf_helper(TGE_Canvas *c, int x, int y, TGE_Color fg,
+                           TGE_Color bg, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    tge_vprintf(c, x, y, fg, bg, fmt, ap);
+    va_end(ap);
+}
+
 TGE_TEST(printf_null_safety)
 {
     TGE_Canvas *c = make_canvas(4, 1);
     tge_printf(NULL, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "x");
     tge_printf(c, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, NULL);
+    vprintf_helper(NULL, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, "x");
+    vprintf_helper(c, 0, 0, TGE_COLOR_WHITE, TGE_COLOR_BLACK, NULL);
+    tge_canvas_destroy(c);
+}
+
+TGE_TEST(vprintf_formats_and_draws)
+{
+    TGE_Canvas *c = make_canvas(20, 2);
+    tge_clear(c, ' ', TGE_COLOR_BLACK, TGE_COLOR_BLACK);
+    vprintf_helper(c, 1, 0, TGE_COLOR_YELLOW, TGE_COLOR_BLACK, " SCORE: %d ",
+                   320);
+    TGE_ASSERT(cell_at(c, 2, 0)->ch == 'S', "S via vprintf");
+    TGE_ASSERT(cell_at(c, 9, 0)->ch == '3', "3 via vprintf");
+    TGE_ASSERT(cell_at(c, 10, 0)->ch == '2', "2 via vprintf");
+    TGE_ASSERT(cell_at(c, 1, 0)->fg.data.index == 3, "fg yellow via vprintf");
     tge_canvas_destroy(c);
 }
 
@@ -414,6 +439,7 @@ int main(void)
     test_printf_formats_and_draws();
     test_printf_truncates_and_clips();
     test_printf_null_safety();
+    test_vprintf_formats_and_draws();
     test_draw_centered_ascii();
     test_draw_centered_wide_utf8();
     test_draw_centered_null_safety();

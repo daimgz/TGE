@@ -93,6 +93,22 @@ TGE_TEST(translate_point_adds_origin)
                "identity when origin is zero");
 }
 
+TGE_TEST(dist2_squared_euclidean)
+{
+    TGE_ASSERT(tge_vec2i_dist2(tge_vec2i(0, 0), tge_vec2i(3, 4)) == 25,
+               "3-4-5 triangle");
+    TGE_ASSERT(tge_vec2i_dist2(tge_vec2i(1, 2), tge_vec2i(1, 2)) == 0,
+               "zero distance");
+    TGE_ASSERT(tge_vec2i_dist2(tge_vec2i(-1, -1), tge_vec2i(2, 3)) == 25,
+               "negative coordinates");
+    TGE_ASSERT(tge_vec2i_dist2(tge_vec2i(10, 5), tge_vec2i(10, 4)) == 1,
+               "vertical neighbor");
+    TGE_ASSERT(tge_vec2i_dist2(tge_vec2i(10, 5), tge_vec2i(9, 5)) == 1,
+               "horizontal neighbor");
+    TGE_ASSERT(tge_vec2i_dist2(tge_vec2i(10, 5), tge_vec2i(9, 4)) == 2,
+               "diagonal neighbor");
+}
+
 int main(void)
 {
     test_construct_and_zero();
@@ -102,5 +118,6 @@ int main(void)
     test_clamp_rect_degenerate();
     test_random_point_stays_in_rect();
     test_translate_point_adds_origin();
+    test_dist2_squared_euclidean();
     return tge_test_report();
 }
