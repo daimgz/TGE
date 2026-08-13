@@ -885,26 +885,57 @@ pide, no antes.**
 > algorítmicos** (ver Fase 4): cada módulo se define por el problema general
 > que resuelve y por la API que merece entrar en `tge-extra`, no porque
 > Roguelike lo necesite. Roguelike queda como integrador final, no como driver.
+> Ver Fase 4 (consolidación / API 1.0) y Post-1.0 (diseño de módulos).
 
-### Fase 4 — Extensiones opcionales
+### Fase 4 — Consolidación / API 1.0
 
-| # | Módulo | Contenido |
-|---|--------|-----------|
-| 19 | tge-extra/Animation | keyframes, easing, sprite sheets |
-| 20 | tge-extra/ResourceManager | carga y cacheo de sprites, tilemaps, fonts |
-| 21 | tge-extra/FOV | shadowcasting |
-| 22 | tge-extra/Pathfinding | A* sobre tilemap |
-| 23 | tge-extra/Noise | ruido Perlin/Simplex |
+No es una fase de nuevos módulos: es el cierre. Objetivos (detalle en
+`IMPLEMENTATION_PLAN.md` §6):
+
+- **Auditar API pública**: headers autocontenidos (✅ ya verificado),
+  `const`-correctness, nombres/ownership/lifecycle, valores de retorno,
+  documentación, símbolos realmente públicos.
+- **Auditar dependencias**: capa `core → tge-extra → examples` unidireccional
+  y limpia (✅ ya verificado: ningún `tge-extra/*.c` ni `examples/` incluye
+  `src/`).
+- **Auditar hot path**: sin `malloc` en render/update (✅ ya verificado;
+  crecimiento on-demand de `array`/`collision`/`entity` es runtime potencial,
+  amortizado, evitable pre-reservando).
+- **Freeze de API 1.0**: declarar la API congelada y documentada; a partir de
+  ahí importa más qué **no** agregar.
+
+> **Estado: ACTUAL.** Los módulos de `tge-extra` ya están implementados; Fase 4
+> los consolida, no los crea.
+
+### Fase 5 — Release v1.0
+
+**Siguiente.** Empaquetar, documentar y etiquetar la API 1.0 como estable. El
+enfoque de entrenamiento por juegos (Fase 3 / 3b) ya demostró que el núcleo no
+está acoplado a un juego en particular.
+
+### Post-1.0 — Extensiones y diseño de módulos
+
+Lo que sigue al release, todo gated por diseño-first (el módulo se implementa
+cuando un juego lo pide, no antes):
+
+| # | Módulo | Contenido | Gatillo |
+|---|--------|-----------|----------|
+| 19 | tge-extra/Animation | keyframes, easing, sprite sheets | ya existe |
+| 20 | tge-extra/ResourceManager | carga y cacheo de sprites, tilemaps, fonts | consumidor real |
+| 21 | tge-extra/FOV | shadowcasting | Roguelike / Laberintos |
+| 22 | tge-extra/Pathfinding | A* sobre tilemap | Tower Defense / Laberintos |
+| 23 | tge-extra/Noise | ruido Perlin/Simplex | generación de mapas |
+| 24 | tge-extra/AI | minimax (Conecta 4) | Conecta 4 vs CPU |
+| 25 | Camera | follow, viewport | Zelda-like / Roguelike |
+| 26 | ColorTheme/Palette | roles semánticos de color | cuando un juego lo pida |
+| 27 | Python bindings | FFI sobre la API 1.0 | tooling externo |
 
 > **Siguiente etapa: diseño de módulos algorítmicos.** FOV / Pathfinding /
-> Noise (y `AI` para Conecta 4) dejan de ser "extensiones opcionales" a
-> implementar por inercia y pasan a una fase de **diseño primero**: para cada
-> uno se documenta el problema general que resuelve (independiente de
-> Roguelike), la API pública propuesta y la casa en `tge-extra`, y el primer
-> consumidor que lo justificaría. Se sigue la regla de Fase 3b — *el módulo se
-> implementa cuando un juego lo pide, no antes* — así que no se escribe código
-> hasta que un ejemplo concreto lo demande. Roguelike es el integrador final,
-> no el driver de esta etapa.
+> Noise / AI dejan de ser "extensiones opcionales" a implementar por inercia y
+> pasan a una fase de **diseño primero**: para cada uno se documenta el
+> problema general que resuelve (independiente de Roguelike), la API pública
+> propuesta y la casa en `tge-extra`, y el primer consumidor que lo
+> justificaría. Roguelike es el integrador final, no el driver.
 
 ---
 
