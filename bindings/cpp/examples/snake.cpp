@@ -38,11 +38,16 @@ struct Game {
     }
 };
 
-/* C resize callback (the contract TGE offers: function pointer + userdata). */
+/* C resize callback (the contract TGE offers: function pointer + userdata).
+ * The callback is responsible for updating pf->view (tge_view_update) and the
+ * world; without it, view.area stays empty and tge_view_contains() is always
+ * false, so the snake would never enter the playfield. */
 void on_resize(void *ud, int gw, int gh) {
     auto *g = static_cast<Game *>(ud);
     int iw = gw > 2 ? gw - 2 : 1;
     int ih = gh > 2 ? gh - 2 : 1;
+
+    tge_view_update(&g->pf.view(), gw, gh);
 
     g->map.init(iw, ih);
     for (int x = 0; x < iw; ++x) { g->map.set(x, 0, 1); g->map.set(x, ih - 1, 1); }

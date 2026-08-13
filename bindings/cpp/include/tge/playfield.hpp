@@ -28,6 +28,7 @@ struct Playfield {
     void draw_border(Color fg, Color bg) { tge_playfield_draw_border(&raw, fg, bg); }
 
     TGE_GridView &grid_view() { return raw.grid_view; }
+    TGE_View &view() { return raw.view; }
     const TGE_View &view() const { return raw.view; }
 };
 

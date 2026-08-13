@@ -839,6 +839,11 @@ La sonda compila y corre limpia (sin warnings, sin stderr en runtime) enlazando
   ruido de API); **Modelo B** — `TGE_Run` + loop manual first-class (`TGE_IsRunning`
   + `TGE_SetDrawCallback` + `TGE_Step` con semántica de presentación definida). Ver
   IMPLEMENTATION_PLAN.md §6.5 / §8.
+  - Detalle de contrato no obvio (también hallado por la sonda): el callback de
+    resize debe llamar `tge_view_update(&pf.view, ...)`; al omitirlo la vista
+    quedaba vacía (`tge_view_contains` siempre `false`) y la serpiente no entraba
+    al escenario (quedaba clavada en la esquina). Corregido en el ejemplo; el
+    contrato es correcto, solo poco evidente.
 - **(positivo)** `Vec2i` (aritmética de operadores), `Direction` (helpers como
   métodos), `Actor::set_position`/`draw`, `App` (RAII oculta `TGE_App*`) resultaron
   cómodos sin pelearse con C. Confirma que la API C permite una proyección C++
