@@ -610,13 +610,31 @@ TGE_TEST(maze_visual_has_exact_dimensions)
     TGE_ASSERT(maze_visual_init(), "MAZE_VISUAL initializes (every row has an even codepoint count)");
     for (int y = 0; y < MAZE_H; y++) {
         const char *p = MAZE_VISUAL[y];
+        int remaining = (int)strlen(MAZE_VISUAL[y]);
         int n = 0;
-        while (*p) { maze_utf8_decode(&p); n++; }
+        uint32_t cp;
+        while (remaining > 0) {
+            int consumed = tge_utf8_decode(p, remaining, &cp);
+            if (consumed <= 0)
+                break;
+            p += consumed;
+            remaining -= consumed;
+            n++;
+        }
         TGE_ASSERT(n == MAZE_W * 2, "row has exactly MAZE_W*2 codepoints");
         for (int x = 0; x < MAZE_W; x++) {
-            const char *p = visual_utf8[y][x];
+            const char *q = visual_utf8[y][x];
+            int remaining = (int)strlen(visual_utf8[y][x]);
             int c = 0;
-            while (*p) { maze_utf8_decode(&p); c++; }
+            uint32_t cp;
+            while (remaining > 0) {
+                int consumed = tge_utf8_decode(q, remaining, &cp);
+                if (consumed <= 0)
+                    break;
+                q += consumed;
+                remaining -= consumed;
+                c++;
+            }
             TGE_ASSERT(c == 2, "each cell is exactly 2 display codepoints");
         }
     }

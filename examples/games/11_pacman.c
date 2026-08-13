@@ -1,4 +1,6 @@
 #include "tge/tge.h"
+#include "tge/tge_math.h"
+#include "tge/tge_utf8.h"
 
 #include "tge-extra/actor.h"
 #include "tge-extra/direction.h"
@@ -296,36 +298,11 @@ static const char *const MAZE_VISUAL[MAZE_H] = {
     " ╚════════════════════════════════════════════════════╝ ",
 };
 
-/* ── UTF-8 helpers (box-drawing codepoints are 3 bytes) ───────────────────── */
-static uint32_t maze_utf8_decode(const char **p)
-{
-    const unsigned char *s = (const unsigned char *)*p;
-    uint32_t cp;
-    if (s[0] < 0x80)                 { cp = s[0];                                      *p += 1; }
-    else if ((s[0] & 0xE0) == 0xC0)  { cp = ((uint32_t)(s[0] & 0x1F) << 6) | (s[1] & 0x3F); *p += 2; }
-    else if ((s[0] & 0xF0) == 0xE0)  { cp = ((uint32_t)(s[0] & 0x0F) << 12) | ((uint32_t)(s[1] & 0x3F) << 6) | (s[2] & 0x3F); *p += 3; }
-    else if ((s[0] & 0xF8) == 0xF0)  { cp = ((uint32_t)(s[0] & 0x07) << 18) | ((uint32_t)(s[1] & 0x3F) << 12) | ((uint32_t)(s[2] & 0x3F) << 6) | (s[3] & 0x3F); *p += 4; }
-    else                             { cp = s[0];                                      *p += 1; }
-    return cp;
-}
-static char *maze_utf8_encode(uint32_t cp, char *out)
-{
-    if (cp < 0x80) {
-        out[0] = (char)cp; return out + 1;
-    } else if (cp < 0x800) {
-        out[0] = (char)(0xC0 | (cp >> 6));
-        out[1] = (char)(0x80 | (cp & 0x3F)); return out + 2;
-    } else if (cp < 0x10000) {
-        out[0] = (char)(0xE0 | (cp >> 12));
-        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-        out[2] = (char)(0x80 | (cp & 0x3F)); return out + 3;
-    } else {
-        out[0] = (char)(0xF0 | (cp >> 18));
-        out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-        out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-        out[3] = (char)(0x80 | (cp & 0x3F)); return out + 4;
-    }
-}
+/* ── MAZE_VISUAL decode (box-drawing codepoints are 3 bytes) ─────────────────
+ * We rely on the library's tge_utf8_decode() instead of a private decoder. The
+ * raw glyph bytes are copied verbatim into visual_utf8[y][x] (no re-encode): the
+ * art is already valid UTF-8, and tge_utf8_decode() returns -1 on malformed
+ * input, which we treat as a blank cell. */
 
 static char       visual_utf8[MAZE_H][MAZE_W][7];   /* 2 glyphs + NUL */
 static TGE_Sprite visual_sprites[MAZE_H][MAZE_W];
@@ -333,7 +310,17 @@ static TGE_Sprite visual_sprites[MAZE_H][MAZE_W];
 static int maze_visual_width(const char *row)
 {
     int n = 0;
-    while (*row) { maze_utf8_decode(&row); n++; }
+    int remaining = (int)strlen(row);
+    const char *p = row;
+    uint32_t cp;
+    while (remaining > 0) {
+        int consumed = tge_utf8_decode(p, remaining, &cp);
+        if (consumed <= 0)
+            break;
+        p += consumed;
+        remaining -= consumed;
+        n++;
+    }
     return n;
 }
 
@@ -354,15 +341,22 @@ static bool maze_visual_init(void)
     }
     for (int y = 0; y < MAZE_H; y++) {
         const char *row = MAZE_VISUAL[y];
+        int remaining = (int)strlen(row);
         const char *p = row;
         for (int x = 0; x < MAZE_W; x++) {
-            uint32_t a = maze_utf8_decode(&p);
-            uint32_t b = maze_utf8_decode(&p);
-            if (a == 0) a = ' ';
-            if (b == 0) b = ' ';
             char *d = visual_utf8[y][x];
-            d = maze_utf8_encode(a, d);
-            d = maze_utf8_encode(b, d);
+            for (int k = 0; k < 2; k++) {
+                uint32_t cp;
+                int consumed = tge_utf8_decode(p, remaining, &cp);
+                if (consumed <= 0) {       /* malformed glyph: blank */
+                    *d++ = ' ';
+                    continue;
+                }
+                memcpy(d, p, (size_t)consumed);
+                d += consumed;
+                p += consumed;
+                remaining -= consumed;
+            }
             *d = 0;
             visual_sprites[y][x] = (TGE_Sprite){ 2, 1, visual_utf8[y][x], "##" };
         }
@@ -1099,9 +1093,10 @@ static void force_ghost_reversal(PacmanWorld *world)
 /* The ghost house block of the classic maze (rows 12-14, cols 10-17: the door
  * cells and the interior). Ghosts inside it are dormant: they still move and
  * leave, but cannot harm Pac-Man until they exit. */
+static const TGE_Rect GHOST_HOUSE = { .x = 10, .y = 12, .w = 8, .h = 3 };
 static bool cell_in_ghost_house(int x, int y)
 {
-    return x >= 10 && x <= 17 && y >= 12 && y <= 14;
+    return tge_rect_contains(GHOST_HOUSE, x, y);
 }
 
 static TGE_Vec2i step_position(const TGE_TileMap *map, TGE_Vec2i p,
