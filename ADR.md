@@ -1087,3 +1087,167 @@ de la terminal".
 *Fin del ADR. Decisiones vinculantes hasta que un nuevo ADR las modifique.
 Ninguna decisión es inmutable, pero cambiar un ADR requiere justificación
 explícita.*
+
+---
+
+## ADR-029: `TGE_Step` como unidad de ejecución pública
+
+**Decisión:** Se expone `void TGE_Step(TGE_App *app)`, que ejecuta
+exactamente una iteración del pipeline normal de frame (ADR-025: eventos →
+update → draw → render/present → scene ops → frame limiting, en ese orden y
+sin omitir el limiter). `TGE_Run` delega en `TGE_Step`:
+`TGE_Run(app, ...)` ≡ `while (!quit) TGE_Step(app)`.
+
+**Racional:** es el primer punto de integración para alojar TGE desde otro
+runtime (C++, Python, loop propio, varias apps). La iteración ya existía
+internamente (`tge_app_frame`); `Step` la hace pública sin crear un segundo
+modelo de ejecución: el pipeline es único y `Run` sigue siendo la API
+principal. Evita el antipatrón de dos loops con semánticas que divergen con
+el tiempo.
+
+**Consecuencias:**
+- El estado de quit vive en la app y se consulta por la API existente; `Step`
+  no lo devuelve como retorno.
+- Un host loop (`while (!done) { TGE_Step(app); host_work(); }`) es
+  observacionalmente equivalente a `TGE_Run`: mismo orden de eventos, scene
+  ops al final del frame, frame limiter en la misma posición.
+- Test de equivalencia en `tests/test_app.c` (`run_equivalent_to_step_loop`,
+  `step_runs_full_pipeline`).
+
+*Ver `docs/HOSTING_API.md` §3.1.*
+
+---
+
+## ADR-030: `userdata` como slot del host en `TGE_App`
+
+**Decisión:** `TGE_App` gana un slot opaco `void *userdata`, accesible por
+`TGE_SetUserData(app, ptr)` / `void *TGE_GetUserData(app)`. TGE no lo
+interpreta ni lo posee; los callbacks de app existentes
+(`init`/`update`/`draw`/`event`) pueden leerlo para reencontrar el objeto de
+alto nivel del host.
+
+**Racional:** los callbacks de `TGE_Run` reciben solo `TGE_App *`, un tipo
+opaco; sin un slot, un binding debe mantener un registro global
+`TGE_App * → wrapper`. El slot elimina ese registro sin cambiar la familia de
+callbacks ni la ABI.
+
+**Consecuencias:**
+- No hay una segunda familia de callbacks ni `TGE_RunUser`; la API existente
+  permanece intacta.
+- Leíble/escribible desde el thread del game loop (ADR-023).
+- La identidad y el lifetime del objeto del host quedan del lado del host
+  (ADR-032).
+- Test en `tests/test_app.c` (`userdata_slot_roundtrip`,
+  `userdata_visible_from_callback`).
+
+*Ver `docs/HOSTING_API.md` §3.2.*
+
+---
+
+## ADR-031: `tge_vprintf` como API de compatibilidad C para bindings
+
+**Decisión:** Se expone `void tge_vprintf(TGE_Canvas *, int x, int y,
+TGE_Color fg, TGE_Color bg, const char *fmt, va_list ap)`, con el mismo
+comportamiento que `tge_printf` (buffer de pila fijo `TGE_PRINTF_BUF`, sin
+alloc, truncamiento estilo `snprintf`). `tge_printf` delega en
+`tge_vprintf`. El header `tge_canvas.h` incluye `<stdarg.h>` (autocontenido).
+
+**Racional:** los bindings (cffi/ctypes) no cruzan varargs de forma portable
+ni fabrican un `va_list`. `tge_vprintf` es una API de compatibilidad C: deja
+que código C intermedio o trampolines del binding deleguen en el mismo
+formateador interno sin atravesar una frontera C varargs. El binding de alto
+nivel mantiene su propia adaptación de formato (strings ya formateados o una
+API propia que baje a la API C no-varargs); no es una API de formateo de
+Python.
+
+**Consecuencias:**
+- `tge_printf` y `tge_vprintf` producen salida idéntica para los mismos args.
+- `check_no_malloc` sigue pasando: `tge_vprintf` no aloca.
+- `make check_headers` verifica que `tge_canvas.h` siga autocontenido.
+- Tests en `tests/test_canvas.c` (`vprintf_formats_and_draws`,
+  `printf_null_safety` ampliado).
+
+*Ver `docs/HOSTING_API.md` §3.3.*
+
+---
+
+## ADR-032: Frontera de hosting — ownership del engine, identidad del host
+
+**Decisión:** Se adopta formalmente el patrón de instancia host-construida y
+la regla de dos owners. El engine administra el ciclo de vida de sus
+estructuras C (`TGE_App`, `TGE_Canvas`, escenas, recursos) y nunca construye
+tipos del host. El host administra la identidad y el ciclo de vida de su
+objeto de alto nivel. TGE no necesita saber qué hay detrás de un `void *`.
+El offset-0 de `TGE_GameContext` es una peculiaridad de representación
+C/C++ (herencia pública + `reinterpret_cast`), no un requisito de
+integración para Python; el binding mantiene la identidad
+`TGE_GameContext * → objeto` por su cuenta.
+
+**Racional:** el core sigue siendo C con structs, callbacks y ownership
+explícito (ADR-020). Meter C++/Python en el core para facilitar un binding
+sería prematuro: lo que hace falta es una frontera de hosting estable, no una
+API de bindings. La separación de identidad/lifetime evita registros globales
+y destructores cruzados.
+
+**Consecuencias:**
+- El ownership de `TGE_Scene` se documenta por comportamiento observable:
+  Pop/Replace encolan; la destrucción ocurre al final del frame en
+  `tge_app_process_scene_ops`; `TGE_Destroy` destruye las escenas del stack y
+  descarta ops pendientes; escenas manuales (`destroy == NULL`) nunca se
+  liberan.
+- `TGE_Backend` público, header C++, eventos tipados, errores estructurados y
+  globals de Unicode quedan diferidos con gatillos explícitos.
+- El contrato completo vive en `docs/HOSTING_API.md` (análisis, reglas de
+  ownership, patrones C++/Python, verificación).
+
+*Ver `docs/HOSTING_API.md` §3.4 y §4.*
+
+---
+
+## ADR-033: Módulos de composición — TileMap, Actor, Playfield
+
+**Decisión:** Se incorporan a `tge-extra` tres módulos de composición para
+juegos por grilla, gatillados por su consumidor real (Pac-Man) tras cumplir
+las reglas de evidencia del plan:
+
+- `TGE_TileMap` (`tge-extra/tilemap.h/.c`): matriz fija sin malloc de celdas
+  lógicas (max 32×32) que guarda un byte de **rol** por celda, más un
+  `TGE_TileSet` (rol → `TGE_Tile { sprite, fg, bg }`) que define cómo se
+  representa. Es deliberadamente tonto: no conoce paredes, colisiones ni
+  reglas; el juego define su enum de roles, rellena la paleta y lee roles
+  con `tge_tilemap_get` para su lógica (`role == MI_PARED` es sólido).
+- `TGE_Actor` (`tge-extra/actor.h/.c`): `{ TGE_Vec2i position; const
+  TGE_Sprite *sprite; TGE_Color fg, bg; }` más `tge_actor_draw(&grid_view,
+  &view, &actor)` (= `tge_grid_view_put_local`). No es ECS: es data plana que
+  los juegos embeben y extienden con sus propios campos (dirección, modo,
+  objetivos); la animación es swapear `sprite`.
+- `TGE_Playfield` (`tge-extra/playfield.h/.c`): encapsula la composición que
+  Snake y Breakout repetían a mano — `TGE_View` + `TGE_GridView` +
+  `TGE_GridLayout` — con `init`/`attach`/`sync`/`draw_border`. Es solo
+  infraestructura: no cámara, no entidades, no reglas; el callback de resize
+  del juego sigue decidiendo cómo reaccionar a un `TGE_ViewUpdate`.
+
+**Motivo:** la regla "el módulo se implementa cuando un juego lo pide, no
+antes" se cumplió en cadena. Snake y Breakout mostraron el patrón
+View+GridView+Layout; Pac-Man fue el tercer juego en repetirlo (la regla de
+los 3 juegos del plan), así que se encapsuló como `TGE_Playfield`. Pac-Man
+también exigió el TileMap (laberinto data-driven 28×31 con roles
+pared/puerta/pellet/power/túnel) y el Actor (sus 4 fantasmas son actores con
+IA chase/scatter por distancia²). Se mantuvo el alcance mínimo: nada de
+pathfinding, animación, cámaras ni reglas de maze en los módulos.
+
+**Consecuencias:**
+- `tge-extra/vec2i` gana `tge_vec2i_dist2` (distancia²), el único helper nuevo
+  que la IA de Pac-Man necesitó (la raíz cuadrada es un paso monótono que
+  nunca se necesita para comparar vecinos).
+- Pac-Man (`examples/games/11_pacman.c`) es el consumidor real y el
+  siguiente hito de validación del hosting: funciona primero en TGE nativo,
+  y luego se aloja externamente para validar `TGE_Step` + `userdata`
+  (ADR-029/030) en una app de verdad.
+- El laberinto se valida en carga (cada fila debe tener MAZE_W caracteres) y
+  por tests (test_pacman: roles, wrap del túnel, bloqueo por puerta, IA,
+  frightened, vidas, win).
+
+*Fin del ADR. Decisiones vinculantes hasta que un nuevo ADR las modifique.
+Ninguna decisión es inmutable, pero cambiar un ADR requiere justificación
+explícita.*

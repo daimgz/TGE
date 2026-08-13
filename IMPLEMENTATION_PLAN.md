@@ -932,7 +932,7 @@ sin inflar el núcleo.
 | FixedStep | `tge-extra/fixedstep.h/.c` | Lazo fixed-timestep con clamp a `max_step` pasos |
 | Input | `tge-extra/input.h/.c` | Helpers: direction (flechas + WASD), confirm, cancel, quit |
 | Grid | `tge-extra/grid.h/.c` | Capa de dibujo para juegos por grilla: cada celda lógica = bloque `cell_w × cell_h` (corrige el aspecto 1:2); tema visual `TGE_GridTheme` (empty/default_sprite/border/selection) + tiles `TGE_GridTile` (`put_tile`/`fill`), sprites arbitrarios (`put`), y helpers (`set_cell`/`draw_border`/`clear`/`erase`/`draw_frame`/`line`/`circle`/`text`) |
-| TileMap | `tge-extra/tilemap.h/.c` | Mapa de celdas lógicas a sprites sobre un `TGE_Grid`: `tge_tilemap_init(&map, 64, 64)`, `tge_tilemap_set(&map, 10, 5, &wall)`, `tge_tilemap_draw(&grid, &map)` |
+| TileMap | `tge-extra/tilemap.h/.c` | **Implementado (Revisión 6, Pac-Man).** Mapa de celdas lógicas a roles sobre un `TGE_Grid`: `tge_tilemap_init(&map, 21, 14)` (sin malloc, celdas embebidas 32×32), `tge_tilemap_set/get(&map, x, y, role)` y `tge_tilemap_draw(&map, &grid, ox, oy, &tiles)`. Es deliberadamente tonto: guarda roles y un `TGE_TileSet` (role → sprite+colores); las reglas (pared, puerta, colisión) son del juego. Desviación del sketch original: roles+paleta en vez de sprite por celda (permite color por rol) |
 
 ### Grid (aspecto de celda)
 
@@ -967,16 +967,15 @@ temas). El ejemplo didáctico de juego de grilla es
 con `set_cell`, cabeza y comida con `put`), demostrando el valor de la
 grilla frente al ejemplo core-only.
 
-### TileMap (próximo módulo extra)
+### TileMap (implementado, Fase 3b — Pac-Man)
 
-Dado que el Grid ya resuelve la representación de celdas (tema + tiles), el
-siguiente módulo extra natural es `TileMap`: una matriz de celdas lógicas →
-sprites renderizada sobre un `TGE_Grid`, pensada para niveles estilo
-Zelda/Pokémon/Pac-Man:
-`tge_tilemap_init(&map, 64, 64)`; `tge_tilemap_set(&map, 10, 5, &wall)`;
-`tge_tilemap_draw(&grid, &map)`. Sin malloc (capacidad fija) como el resto
-de tge-extra. Se implementará cuando se pida un juego que lo necesite
-(Pac-Man y Sokoban lo gatillan; ver Fase 3b del roadmap).
+El Grid resuelve la representación de celdas (tema + tiles); `TileMap` es la
+matriz de celdas lógicas → roles renderizada sobre un `TGE_Grid`, para niveles
+estilo Zelda/Pokémon/Pac-Man: `tge_tilemap_init(&map, 21, 14)`;
+`tge_tilemap_set(&map, 10, 5, ROLE_WALL)`; `tge_tilemap_draw(&map, &grid, ox,
+oy, &tiles)`. Sin malloc (capacidad fija 32×32) como el resto de tge-extra.
+Se implementó cuando Pac-Man lo pidió (Fase 3b del roadmap); Sokoban es su
+siguiente consumidor.
 
 ### Módulos utilitarios (Batch 2)
 
@@ -1157,6 +1156,11 @@ representativos, asumiendo que las primitivas ya están validadas.
 - [x] Revisión 5: `tge-extra/game` — capa adaptadora opcional sobre TGE_Scene (TGE_GameContext + TGE_GameCallbacks + `tge_game_scene_create`, trampolines que despachan a callbacks que nunca ven la escena); mata el cast `scene->userdata` y el global `g_app` dentro de los callbacks de juego, con tests (test_game) y ADR-027
 - [x] Revisión 5: `06_snake_grid` migrado al adapter (SnakeGame embebe `TGE_GameContext ctx` en offset 0; los callbacks reciben ctx); la escena título queda en `tge_scene_create` (prueba de que una escena no siempre es un juego)
 - [ ] Revisión 5 (Fase 2 de validación): migrar `07_breakout` y luego `03_tetris` al adapter; si 07 obliga a tocar la API, se ajusta antes de 03
+- [x] Fase 3b: `tge-extra/tilemap` (mapa de roles sin malloc + `TGE_TileSet`) con tests (test_tilemap) — consumido por Pac-Man
+- [x] Fase 3b: `tge-extra/actor` (`TGE_Actor`: posición + sprite + colores + `tge_actor_draw`) con tests (test_actor) — los 4 fantasmas de Pac-Man son actores
+- [x] Fase 3b: `tge-extra/playfield` (encapsula View + GridView + Layout, el patrón de Snake/Breakout) con tests (test_playfield) — consumido por Pac-Man
+- [x] Fase 3b: `tge-extra/vec2i` gana `tge_vec2i_dist2` (distancia² para la IA de los fantasmas: el fantasma elige el vecino más cercano a su objetivo; la raíz cuadrada es un paso monótono que nunca se necesita), con tests
+- [x] Fase 3b: `11_pacman` jugable (Fase 3b del roadmap; validación de composición): laberinto data-driven 28×31 (roles pared/puerta/pellet/power/túnel), pacman con `input_buffer` (la dirección encolada es intención de giro, se aplica solo si la celda está libre), 4 fantasmas con IA chase/scatter por distancia² (tie-break U>L>D>R), frightened pseudoaleatorio determinista (xorshift por fantasma), estado `GHOST_EATEN` con vuelta a casa caminando, colisión por cruce de celdas, duraciones scatter 7s / chase 20s / frightened 7s, túnel con wrap, vidas/score/win/restart, todo sobre `TGE_Playfield` + `TGE_TileMap` + `TGE_Actor`; con tests (test_pacman)
 
 ---
 
@@ -1343,30 +1347,47 @@ destroy)` o un constructor de un solo paso. `tge_scene_create` ya absorbe el
 nombres de las funciones). No se implementa: los callbacks por nombre siguen
 siendo legibles y el usuario prefiere esperar a que el patrón crezca.
 
-### 11. `TGE_Actor` (anotado, esperar evidencia)
+### 11. `TGE_Actor` — **implementado (Revisión 6, Pac-Man)**
 
-Candidato fuerte para el siguiente módulo "de patrones" de tge-extra:
+El sketch de abajo se mantuvo tal cual salvo el `TGE_Sprite *` no-const:
 
 ```c
 typedef struct {
     TGE_Vec2i position;
-    TGE_Sprite *sprite;
+    const TGE_Sprite *sprite;
     TGE_Color fg, bg;
 } TGE_Actor;
 ```
 
-Con `tge_grid_draw_actor(...)` para el renderer. No es ECS ni específico de
-Snake (sirve para roguelikes, Tetris, Pac-Man, Bomberman, Sokoban, tower
-defense). **Regla:** no se implementa hasta que 2-3 juegos demuestren que el
-diseño sirve de verdad.
+Con `tge_actor_draw(&grid_view, &view, &actor)` (= `tge_grid_view_put_local`
+del actor). No es ECS ni específico de Snake: es data plana (posición +
+representación) y un draw helper; el juego embebe el `TGE_Actor` en sus
+structs y le añade encima sus campos (dirección, modo, targets), animando
+swapeando `sprite`. La regla "2-3 juegos demuestran el diseño" se cumplió con
+Snake → Breakout → **Pac-Man** (sus 4 fantasmas son `PacmanGhost` con un
+`TGE_Actor` embebido).
 
-### 12. `TGE_Playfield` (anotado, esperar evidencia)
+### 12. `TGE_Playfield` — **implementado (Revisión 6, Pac-Man)**
 
-El Snake muestra una arquitectura emergente:
+El patrón emergente del Snake (View + GridView + Layout) apareció igual en
+Snake, Breakout y Pac-Man, así que se encapsuló (la regla de los 3 juegos
+cumplida):
 
+```c
+typedef struct {
+    TGE_View view;          /* playfield lógico que se adapta a la terminal */
+    TGE_GridView grid_view; /* la superficie de dibujo */
+    TGE_GridLayout layout;  /* tamaño lógico ya aplicado al view */
+} TGE_Playfield;
+
+tge_playfield_init(&pf, &theme, TGE_GRID_SCALE_2X1, min_w, min_h);
+tge_playfield_attach(&pf, canvas);               // por frame
+tge_playfield_sync(&pf, w, h, resize_cb, userdata); // cambia de tamaño lógico
+tge_playfield_draw_border(&pf, fg, bg);
 ```
-View + InputBuffer + FixedStep + GridView
-```
 
-Si Snake, Breakout y Pac-Man usan el mismo patrón, recién entonces se
-encapsula. No se implementa todavía.
+Es solo infraestructura: no cámara, no entidades, no reglas. El callback de
+resize (que es del juego) sigue decidiendo cómo reaccionar a un
+`TGE_ViewUpdate`. Pac-Man lo consume como `TGE_Playfield pf` embebido en
+`PacmanGame`, con su world (TileMap + actores) escribiendo en `pf.view` /
+`pf.grid_view`.

@@ -853,7 +853,7 @@ pide, no antes.**
 
 | # | Juego | Valida / desbloquea | Por qué |
 |---|-------|--------------------|---------|
-| 08 | Pac-Man | `TGE_Playfield` + `TGE_Actor` + `TileMap` | El plan ya lo fija como el tercer juego del patrón Snake/Breakout: el patrón se encapsula recién cuando los 3 lo usen. Laberinto = tilemap, turnos encolados = `input_buffer`, fantasmas = actores con IA simple (chase/scatter). |
+| 08 | Pac-Man | `TGE_Playfield` + `TGE_Actor` + `TileMap` | **Jugable en `examples/games/11_pacman.c`.** El plan ya lo fijaba como el tercer juego del patrón Snake/Breakout: el patrón se encapsuló recién con los 3 usándolo. Laberinto = tilemap (data-driven 28×31), turnos encolados = `input_buffer` (la dirección es intención de giro), fantasmas = actores con IA chase/scatter (distancia², tie-break U>L>D>R), frightened pseudoaleatorio determinista y comido que vuelve caminando a casa, túnel con wrap. |
 | 09 | Sokoban | `TileMap` (niveles = tilemaps) | Lógica mínima (sin IA ni timers): solo grid + input + undo. Es la forma más barata de probar niveles data-driven y edición de mapa. |
 | 10 | Minesweeper | Mouse (botones, click derecho) + flood fill + RNG con seed | Primer juego que exige el mouse en serio (revelar/marcar). Flood fill BFS sobre grid y generación determinista con seed. |
 | 11 | Roguelike (dungeon crawl) | `tge-extra/fov` (shadowcasting) → pathfinding → noise | Es el destino declarado de la filosofía del motor. Procedural, permadeath, por turnos. Gatillo de los tres módulos grandes de extensión. |

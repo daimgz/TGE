@@ -18,10 +18,10 @@ Cada módulo es independiente, usa solo la API pública de TGE y nunca
 
 Módulos actuales (experimentales): `entity`, `animation`, `collision`,
 `vec2i`, `direction`, `timer`, `fixedstep`, `input`, `grid`, `view`,
-`input_buffer`, `grid_view`, `game`. Los utilitarios (`vec2i`, `direction`,
-`timer`, `fixedstep`, `input`) se validan como consumidores de ejemplo
-`examples/games/01_snake.c` y `05_swarm.c`; `grid` (capa de dibujo por grilla
-con tema visual `TGE_GridTheme` y tiles `TGE_GridTile`) se valida en
+`input_buffer`, `grid_view`, `game`, `sprite`. Los utilitarios (`vec2i`,
+`direction`, `timer`, `fixedstep`, `input`) se validan como consumidores de
+ejemplo `examples/games/01_snake.c` y `05_swarm.c`; `grid` (capa de dibujo por
+grilla con tema visual `TGE_GridTheme` y tiles `TGE_GridTile`) se valida en
 `examples/min/08_grid_canvas.c` y `examples/games/06_snake_grid.c`.
 
 Los módulos de layout y entrada — `view` (TGE_View: playfield adaptativo con
@@ -33,6 +33,15 @@ ejemplo en `examples/games/01_snake.c` (`view` + `input_buffer`),
 `examples/games/06_snake_grid.c` (`view` + `input_buffer` + `grid_view`,
 ejemplo de referencia de la arquitectura world/renderer) y
 `examples/games/07_breakout.c` (`view` + `grid_view`).
+
+`sprite` (TGE_MaskSprite: arte box-art + máscara de colisión del mismo tamaño,
+con `tge_sprite_solid`/`tge_sprite_collide`/`tge_sprite_draw`) se valida en
+`examples/games/08_dino.c`, que lo consume tras extraerlo de su propio código.
+La máscara describe la geometría y el juego decide el hitbox (`aw` en
+`tge_sprite_collide` puede ser más angosto que el arte, estilo Chrome); la
+selección temporal de frames, pose y eye/mouth siguen siendo del juego, no del
+módulo. El fallback ASCII dibuja la máscara como bloques, por lo que el módulo
+sustituye también el path de dibujo alternativo del consumidor.
 
 Operaciones sobre el espacio local del view (candidatas): `tge_view_translate`
 (local→superficie por el origen del área), `tge_view_contains` (dentro del
@@ -63,6 +72,22 @@ es bienvenido, un "helper por las dudas" no. Los helpers de dibujo del core
 (`tge_printf`, `tge_draw_centered_text`) y los de escena
 (`tge_scene_create`/`tge_scene_destroy`) entran por esta regla: el patrón que
 eliminan estaba en todos los juegos de ejemplo.
+
+Excepción de `sprite` (documentada al agregarlo): la regla de dos
+consumidores puede relajarse cuando una abstracción representa un concepto
+completo y autocontenido ya probado por un ejemplo no trivial, y su
+extracción no impone políticas sobre futuros consumidores:
+
+> The two-consumer rule may be relaxed when an abstraction represents a
+> complete, self-contained concept already proven by a non-trivial example
+> and its extraction does not impose policy on future consumers.
+
+`TGE_MaskSprite` es ese caso: no es un helper en busca de un segundo uso, sino
+una pieza con una combinación conceptual clara (representación visual +
+geometría de colisión) cuya implementación ya existía y funcionaba en
+`08_dino`. Su extracción copia el comportamiento probado en vez de inventar
+API nueva, y no obliga a nada a quien la consuma: no trae física, colliders,
+animación ni hitboxes; el juego conserva ambas decisiones.
 
 ## Funciones del core añadidas en revisión 3 (candidatas a 1.x)
 
