@@ -6,7 +6,7 @@
 
 ## Filosofía del proyecto
 
-TGE es una biblioteca escrita en C para crear videojuegos de terminal modernos. Su objetivo es ofrecer una experiencia similar a Raylib: una API pequeña, clara y multiplataforma, construida sobre un runtime de terminal eficiente con render diferencial, soporte Unicode y backends intercambiables. El mismo núcleo está pensado para exponer bindings de alto rendimiento a Python y otros lenguajes.
+TGE es una biblioteca escrita en C para crear videojuegos de terminal modernos. Su objetivo es ofrecer una experiencia similar a Raylib: una API pequeña, clara y multiplataforma, construida sobre un runtime de terminal eficiente con render diferencial, soporte Unicode y backends intercambiables. El mismo núcleo está pensado para exponer bindings de alto rendimiento a Python y otros lenguajes **sobre la API C estable** (C es el contrato ABI; C++ es laboratorio de ergonomía, no intermediario).
 
 **No es:**
 - Un framework TUI (como Textual o ncurses)
@@ -726,7 +726,38 @@ TGE_Color tge_Color(uint8_t r, uint8_t g, uint8_t b);
 
 ---
 
-## Binding Futuro para Python
+## Bindings / proyecciones de lenguaje (C = ABI, C++ = ergonomía)
+
+TGE se expone a otros lenguajes como un **contrato ABI en C** (`libtge.a` +
+`libtge-extra.a`). C es la única fuente de verdad; C++/Python/Rust/Zig son
+proyecciones que hablan C directamente:
+
+```text
+                    TGE C / ABI  (libtge + libtge-extra)
+                     ▲    ▲    ▲    ▲
+                     │    │    │    │
+                C++ tge::  Python FFI  Rust FFI  Zig FFI
+                (ergonomía) (semántica C) (semántica C) (semántica C)
+```
+
+- **C define la semántica.** Es el contrato ABI (ver `docs/API_STABILITY.md`).
+- **C++ (`tge::`) es el laboratorio de ergonomía**, no un intermediario: ningún
+  otro lenguaje pasa por C++. Si para hacer `tge::Actor` cómodo hay que inventar
+  wrappers absurdos, eso revela un problema de la API C *antes* del freeze 1.0.
+  La sonda `tge::` mínima ya se construye en Fase 4 (`bindings/cpp/`).
+- **Python / Rust / Zig beben de C directamente** (ctypes/cffi/PyCapsule/extensión
+  en Python; FFI en Rust/Zig). Comparten el modelo conceptual (`Vec2i`,
+  `Direction`, `TileMap`, `Actor`, `App`) pero en sintaxis idiomática propia.
+
+Regla de frontera:
+
+> C++ nunca es capa de la que dependan los demás lenguajes.
+> ✅ Python→C  ✅ Rust→C  ✅ Zig→C  ✅ C++→C   ❌ Python→C++→C
+>
+> Si afecta la semántica/contrato de TGE → corregir en C.
+> Si es expresión idiomática → resolverlo en la proyección.
+
+### Python (post-1.0)
 
 ```python
 import tge
@@ -766,6 +797,45 @@ app.run(PongScene())
 - Los callbacks de C se traducen a métodos de Python
 - El game loop corre en C; Python solo define la lógica
 - Sin decoradores, sin reactividad, sin magia
+- FFI **directa sobre la API C** (no vía C++)
+
+### C++ (sonda de Fase 4)
+
+`tge::` es una proyección mínima, real y deliberadamente incompleto (solo
+`Vec2i`, `Direction`, `Input`, `Actor`, `TileMap`, `Playfield`, `App`) que sirve
+para validar la ergonomía de la API C. No es un binding completo ni dependencia
+de otros lenguajes. Ejemplo: `actor.set_position({10, 5})` en vez de
+`tge_actor_set_position(actor, pos)`.
+
+#### Hallazgos de la sonda (Fase 4)
+
+La sonda compila y corre limpia (sin warnings, sin stderr en runtime) enlazando
+`libtge.a` + `libtge-extra.a`. Clasificación semántica-vs-idiomática:
+
+- **(C, ya corregido)** `include/tge/tge.h` no tenía guard `extern "C"`; el
+  umbrella ahora es autocontenido para consumidores C++ (ver commit de la sonda).
+- **(idiomática C++)** Los macros `TGE_COLOR_*` son *compound literals* con
+  designated initializers, inválidos en C++. El wrapper `tge::Color` los sustituye
+  con `tge_color_indexed(...)` y constructores nombrados. No es fallo de contrato:
+  azúcar de C que la proyección resuelve.
+- **(idiomática C++)** La paleta (`TGE_TileSet`/`TGE_TileLegend`) y el callback de
+  resize (`tge_grid_layout_resize_fn` + `void*`) son la forma C del contrato;
+  `tge::TileMap`/`tge::Playfield` los exponen tal cual. Aceptable; una proyección
+  puede ocultarlos (p.ej. `std::function`).
+- **(C, candidato a freeze 1.0)** No hay accessor público de "¿sigue corriendo?"
+  en el loop manual: la sonda tuvo que trackear su propio `quit_` (lo fija al ver
+  `TGE_EVENT_QUIT`). Sugerir `bool TGE_IsRunning(TGE_App*)` o que `TGE_Step`
+  devuelva `bool`. **Pendiente de decisión en §6.4 / IMPLEMENTATION_PLAN.md 6.5**,
+  no aplicado todavía.
+- **(positivo)** `Vec2i` (aritmética de operadores), `Direction` (helpers como
+  métodos), `Actor::set_position`/`draw`, `App` (RAII oculta `TGE_App*`) resultaron
+  cómodos sin pelearse con C. Confirma que la API C permite una proyección C++
+  limpia antes del freeze.
+
+### Rust / Zig (post-1.0)
+
+Bindings de FFI sobre la API C estable, con el mismo modelo conceptual que C++
+y Python, en sintaxis idiomática de cada lenguaje. Sin pasar por C++.
 
 ---
 
@@ -928,7 +998,10 @@ cuando un juego lo pide, no antes):
 | 24 | tge-extra/AI | minimax (Conecta 4) | Conecta 4 vs CPU |
 | 25 | Camera | follow, viewport | Zelda-like / Roguelike |
 | 26 | ColorTheme/Palette | roles semánticos de color | cuando un juego lo pida |
-| 27 | Python bindings | FFI sobre la API 1.0 | tooling externo |
+| 27 | C++ `tge::` (sonda) | proyección de ergonomía sobre C (Fase 4) | bindings/cpp/ |
+| 28 | Python bindings | FFI directo sobre C (no vía C++) | tooling externo |
+| 29 | Rust bindings | FFI directo sobre C | tooling externo |
+| 30 | Zig bindings | FFI directo sobre C | tooling externo |
 
 > **Siguiente etapa: diseño de módulos algorítmicos.** FOV / Pathfinding /
 > Noise / AI dejan de ser "extensiones opcionales" a implementar por inercia y

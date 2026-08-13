@@ -66,4 +66,6 @@ tests/test_minesweeper
 tests/test_playfield
 tests/test_tilemap
 
+bindings/cpp/examples/snake
+
 .cache/

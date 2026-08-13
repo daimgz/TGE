@@ -178,6 +178,30 @@ La regla "sin `malloc` en render path" ya estaba verificada (strace/valgrind). C
 
 Declarar "esta es la API 1.0" cambia la economía: a partir de ahí importa más qué **no** agregar. Las propuestas post-1.0 (`TGE_CreateConfig`, `TGE_SurfaceObserver`, `TGE_View` fuera del mundo, `RingBuffer`, `PointDeque`, `ColorTheme`) se reconsideran solo si cierran una inconsistencia real, no por adelantarse al uso. Ver §10 y §12.
 
+### 6.5 Sonda `tge::` (C++ ergonomics probe) — **entregable (Fase 4)**
+
+Como herramienta de diseño **antes** del freeze 1.0, se construye una proyección
+C++ **mínima, real y deliberadamente incompleta** (`bindings/cpp/`) que consume la
+API C estable y la envuelve en `tge::`. No es un binding completo: cubre solo 7
+piezas representativas (`Vec2i`, `Direction`, `Input`, `Actor`, `TileMap`,
+`Playfield`, `App`) y un ejemplo real pequeño (`examples/snake.cpp`).
+
+Objetivo: responder *"¿la API C permite construir una interfaz C++ limpia sin
+pelearse con ella?"* — no solo *"¿compila C++ contra TGE?"*. El ejemplo debe
+demostrar que la abstracción C++ es genuinamente más cómoda que consumir C
+directo (p.ej. `actor.set_position({10,5})` en vez de
+`tge_actor_set_position(actor, pos)`), y revelar fricciones (`raw()` constantes,
+casts visibles, ownership expuesto, firmas con demasiados argumentos).
+
+Regla de frontera (ver §12): **C es el contrato ABI; C++ es proyección, nunca
+intermediario** (`Python→C`, `Rust→C`, `Zig→C`, `C++→C`; nunca `X→C++→C`). Si un
+hallazgo afecta la **semántica/contrato** de TGE → se propone fix en C antes del
+freeze (§6.4); si es **expresión idiomática C++** → se resuelve en `tge::`.
+
+Entregable de cierre: un reporte de hallazgos ergonómicos (nombres,
+ownership/lifecycle, nº de argumentos, value-types, agrupación, retornos) con
+cada ítem clasificado (a) fix-C / (b) idiomática-C++.
+
 ---
 
 ## 7. Historial de construcción (resumen)
@@ -212,7 +236,7 @@ Estado granular (conservado del histórico; los ítems de construcción ya está
 
 ## 9. Lo que NO está en el plan / post-1.0
 
-- **Bindings a Python**: post-1.0.
+- **Bindings / proyecciones (Python, Rust, Zig)**: post-1.0; FFI directo sobre la API C (no vía C++). Ver §12. C++ ya tiene una sonda de ergonomía en Fase 4 (§6.5).
 - **Camera** (`TGE_Camera`): post-1.0, tras TileMap/Playfield (ya existentes).
 - **FOV / Pathfinding / Noise / AI** (`tge-extra/`): post-1.0, por diseño primero (ver §10). No se implementan hasta que un juego los pida.
 - **Sprite + Tilemap como built-ins**: ya en `tge-extra` (`sprite.h`, `tilemap.h`). ✅ No pendiente.
@@ -228,6 +252,7 @@ Módulos y juegos claramente post-1.0, gated por diseño-first (no por Roguelike
 - **Módulos algorítmicos** (cada uno se define por el problema general que resuelve y la API que merece entrar en `tge-extra`): `fov` (shadowcasting), `pathfinding` (A* sobre tilemap), `noise` (Perlin/Simplex), `ai` (minimax, para Conecta 4). Roguelike es el integrador final, no el driver.
 - **Juegos #11–#18 del roadmap** (Roguelike, Bomberman, Tower Defense, Conecta 4, 2048, Snake 2P, Sudoku, Laberintos): diferidos; cada uno dispara diseño de módulo antes de implementarse.
 - **API complementaria post-1.0 (solo-si-cierran-inconsistencia):** `TGE_CreateConfig` (estilo SDL3), `TGE_SurfaceObserver` (patrón resize ya repetido en snakes), `TGE_View` fuera del mundo (el mundo no debería saber el tamaño de la terminal), `RingBuffer` genérico (base de DirQueue/PointDeque), `TGE_ColorTheme`/`TGE_Palette` (roles semánticos de color, análogo a `TGE_GridTheme`). Ver §12.
+- **Bindings (proyecciones de lenguaje):** Python/Rust/Zig sobre C directo (FFI); C++ como laboratorio de ergonomía (sonda `tge::` ya iniciada en Fase 4, §6.5). Ver §12.
 
 ---
 
@@ -244,6 +269,8 @@ src/               → implementación privada del core (app, canvas, renderer,
                      runtime, scene, scheduler, parser, backend_ansi,
                      unicode, utf8, math) + tge_internal.h
 examples/          → consumidores (games/, min/)
+bindings/cpp/       → sonda `tge::` (C++), proyección de ergonomía sobre la API C
+                     estable (no binding completo; ver §6.5 / §12)
 tests/             → validación (test_unit, test_*, test_pacman, test_sokoban,
                      test_minesweeper, …)
 ```
@@ -252,7 +279,48 @@ Regla de capas: `src/` es privado y no debe ser incluido por `tge-extra/` ni `ex
 
 ---
 
-## 12. Pendiente / Diferido (decisión del usuario, pendiente de retomar)
+## 12. Arquitectura de lenguajes / proyecciones de lenguaje
+
+TGE se expone a otros lenguajes como **un contrato ABI en C** (`libtge.a` +
+`libtge-extra.a`), no como una capa C++. La política de estabilidad de ese
+contrato vive en `docs/API_STABILITY.md`.
+
+```text
+                         TGE C
+                    ┌──────┴──────┐
+                    │             │
+                 libtge      libtge-extra
+                    │             │
+        ┌───────────┼─────────────┼───────────┐
+        ▼           ▼             ▼           ▼
+      tge::       Python        Rust        Zig
+       C++          FFI           FFI         FFI
+    ergonomía    semántica C  semántica C  semántica C
+```
+
+- **C = contrato.** Define la semántica y la ABI. Es la única fuente de verdad
+  que enlazan los demás lenguajes.
+- **C++ = laboratorio de ergonomía.** `tge::` es la *primera* proyección
+  idiomática y, por tanto, la primera prueba de diseño de la API C. Puede
+  influir en las APIs de alto nivel, pero **no es dependencia de nadie**: ningún
+  otro binding pasa por C++.
+- **Python / Rust / Zig = proyecciones de semántica C.** Beben de la API C
+  directamente (ctypes/cffi/PyCapsule/extensión en Python; FFI en Rust/Zig).
+  Adoptan el mismo modelo conceptual (`Vec2i`, `Direction`, `TileMap`, `Actor`,
+  `App`) pero en sintaxis idiomática propia; no copian mecánicamente los nombres
+  de C.
+
+Regla de triaje para cualquier fricción descubierta por una proyección:
+
+> Si afecta la semántica o el contrato de TGE → corregir en C.
+> Si es cómo expresar esa semántica idiomáticamente → resolverlo en la proyección.
+
+Por eso conviene hacer la sonda `tge::` *antes* del freeze 1.0 (§6.4/§6.5): una
+firma C incómoda aún se puede corregir; tras 1.0 ya sería parte del contrato ABI.
+
+---
+
+## 13. Pendiente / Diferido (decisión del usuario, pendiente de retomar)
 
 El usuario pidió **anotar** esto antes de pasar a algo más urgente. No está
 bloqueado, solo diferido.
