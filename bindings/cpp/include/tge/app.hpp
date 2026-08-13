@@ -20,7 +20,10 @@ struct App {
     App(const App &) = delete;
     App &operator=(const App &) = delete;
 
-    /* One frame of the manual loop. Returns false when the app should stop. */
+    /* Raw C primitives (TGE_Step / TGE_PollEvent). NOTE: TGE_Step presents the
+     * canvas *inside* the frame, so a caller that draws after step() is never
+     * shown. The supported rendering path is run() with a draw callback. Keep
+     * these only for low-level probing, not for drawing games. */
     bool step() {
         if (quit_) return false;
         TGE_Step(raw);

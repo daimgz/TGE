@@ -827,6 +827,18 @@ La sonda compila y corre limpia (sin warnings, sin stderr en runtime) enlazando
   `TGE_EVENT_QUIT`). Sugerir `bool TGE_IsRunning(TGE_App*)` o que `TGE_Step`
   devuelva `bool`. **Pendiente de decisión en §6.4 / IMPLEMENTATION_PLAN.md 6.5**,
   no aplicado todavía.
+- **(C, candidato a freeze 1.0 — sin fix automático)** El loop manual
+  (`TGE_Step` + el caller dibuja + `TGE_PollEvent`) no es una superficie pública
+  de primera clase: no hay setter público de `draw`/`update`/`event` callback (solo
+  `TGE_Run` los setea) y `TGE_Step` presenta un canvas vacío si no hay `draw_cb`.
+  La sonda lo demonstró al quedar la pantalla en negro; se corrigió usando
+  `app.run(...)` (camino canónico, callbacks init/update/draw/event). No se agrega
+  `TGE_IsRunning` / `TGE_SetDrawCallback` por comodidad del ejemplo: falta un
+  segundo consumidor que justifique el loop manual en 1.0. Alternativas a evaluar
+  en el freeze: **Modelo A** — `TGE_Run` es el único loop público (manual loop =
+  ruido de API); **Modelo B** — `TGE_Run` + loop manual first-class (`TGE_IsRunning`
+  + `TGE_SetDrawCallback` + `TGE_Step` con semántica de presentación definida). Ver
+  IMPLEMENTATION_PLAN.md §6.5 / §8.
 - **(positivo)** `Vec2i` (aritmética de operadores), `Direction` (helpers como
   métodos), `Actor::set_position`/`draw`, `App` (RAII oculta `TGE_App*`) resultaron
   cómodos sin pelearse con C. Confirma que la API C permite una proyección C++

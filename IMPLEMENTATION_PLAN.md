@@ -200,7 +200,12 @@ freeze (§6.4); si es **expresión idiomática C++** → se resuelve en `tge::`.
 
 Entregable de cierre: un reporte de hallazgos ergonómicos (nombres,
 ownership/lifecycle, nº de argumentos, value-types, agrupación, retornos) con
-cada ítem clasificado (a) fix-C / (b) idiomática-C++.
+cada ítem clasificado (a) fix-C / (b) idiomática-C++. Hallazgos registrados en
+`PLAN_ENTRENAMIENTO.md` (sección Bindings / proyecciones). Destacado: el loop
+manual no es superficie pública de primera clase (la sonda lo detectó al quedar la
+pantalla en negro con `TGE_Step`+draw; corregido con `TGE_Run`). Se registra como
+candidato de freeze **sin fix automático** (no se toca `src/` por comodidad del
+ejemplo): falta un segundo consumidor que justifique el loop manual en 1.0.
 
 ---
 
@@ -231,6 +236,7 @@ Estado granular (conservado del histórico; los ítems de construcción ya está
 - [x] `docs/API_STABILITY.md` publicado.
 - [ ] **Abierto:** migrar `07_breakout` y `03_tetris` al adapter de juego (Revisión 5, Fase 2 de validación) — si obliga a tocar la API, ajustar antes.
 - [ ] **Fase 4 (cierre 1.0):** pasada final de `const`/nombres/ownership/lifecycle/retornos/docs en headers públicos; confirmar símbolos realmente públicos; declarar freeze 1.0 (§6.4).
+- [ ] **Candidato freeze (loop manual):** ¿debe TGE exponer un loop manual de primera clase (setter de draw/update/event callback + `TGE_IsRunning`, con `TGE_Step` presentando el canvas del llamador), o basta `TGE_Run` como único loop público? La sonda lo halló al usar `TGE_Step`+draw (pantalla negra); corregido con `TGE_Run`. No se implementa hasta tener un segundo consumidor que lo justifique. Ver §6.5 / PLAN_ENTRENAMIENTO.md (hallazgos de la sonda).
 
 ---
 
