@@ -48,12 +48,18 @@ examples/games/07_breakout
 examples/games/08_dino
 examples/games/09_dungeon
 examples/games/10_map_editor
+examples/games/11_pacman
 
 tests/test_grid_view
 tests/test_input_buffer
+tests/test_sprite
 tests/test_view
 tests/test_game
 tests/test_array
 tests/test_ui
+tests/test_actor
+tests/test_pacman
+tests/test_playfield
+tests/test_tilemap
 
 .cache/
