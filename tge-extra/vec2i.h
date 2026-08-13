@@ -28,6 +28,11 @@ TGE_Vec2i tge_vec2i_scale(TGE_Vec2i v, int s);
 /* Component-wise equality. */
 bool tge_vec2i_eq(TGE_Vec2i a, TGE_Vec2i b);
 
+/* Squared Euclidean distance between two points (dx*dx + dy*dy). Games with
+ * tile-based AI (a ghost picking the neighbor closest to its target) compare
+ * squared distances: the square root is a monotone step they never need. */
+int tge_vec2i_dist2(TGE_Vec2i a, TGE_Vec2i b);
+
 /* Clamp `p` to the inclusive cell bounds of `r` (x in [r.x, r.x+r.w-1], y in
  * [r.y, r.y+r.h-1]). A degenerate rect (w or h <= 0) yields its top-left
  * corner. Keeps playfield/camera points inside their field after a resize. */

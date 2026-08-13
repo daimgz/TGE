@@ -39,6 +39,13 @@ bool tge_vec2i_eq(TGE_Vec2i a, TGE_Vec2i b)
     return a.x == b.x && a.y == b.y;
 }
 
+int tge_vec2i_dist2(TGE_Vec2i a, TGE_Vec2i b)
+{
+    int dx = a.x - b.x;
+    int dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
+
 TGE_Vec2i tge_vec2i_clamp_rect(TGE_Vec2i p, TGE_Rect r)
 {
     if (r.w <= 0 || r.h <= 0)
