@@ -120,33 +120,33 @@ static void emit_style(ANSIState *s, TGE_Color fg, TGE_Color bg, uint8_t attr)
     if (attr & 8)  { buf[len++] = ';'; buf[len++] = '4'; }
     if (attr & 16) { buf[len++] = ';'; buf[len++] = '5'; }
     if (attr & 32) { buf[len++] = ';'; buf[len++] = '7'; }
-    if (!same_fg) {
-        if (f.is_default) {
-            buf[len++] = ';';
-            buf[len++] = '3';
-            buf[len++] = '9';
-        } else if (f.rgb) {
-            int n = snprintf(buf + len, (size_t)(96 - len), ";38;2;%d;%d;%d",
-                             f.rgbv[0], f.rgbv[1], f.rgbv[2]);
-            len += n;
-        } else {
-            buf[len++] = ';'; buf[len++] = '3';
-            buf[len++] = (char)('0' + (f.index & 7));
-        }
+    /* The leading '0' above is a full SGR reset, so whatever the terminal had
+     * for the other color is gone; re-emit BOTH foreground and background in
+     * full on every style change. Emitting only the changed half would leave
+     * the reset half as the terminal default (a sky background would vanish). */
+    if (f.is_default) {
+        buf[len++] = ';';
+        buf[len++] = '3';
+        buf[len++] = '9';
+    } else if (f.rgb) {
+        int n = snprintf(buf + len, (size_t)(96 - len), ";38;2;%d;%d;%d",
+                         f.rgbv[0], f.rgbv[1], f.rgbv[2]);
+        len += n;
+    } else {
+        buf[len++] = ';'; buf[len++] = '3';
+        buf[len++] = (char)('0' + (f.index & 7));
     }
-    if (!same_bg) {
-        if (b.is_default) {
-            buf[len++] = ';';
-            buf[len++] = '4';
-            buf[len++] = '9';
-        } else if (b.rgb) {
-            int n = snprintf(buf + len, (size_t)(96 - len), ";48;2;%d;%d;%d",
-                             b.rgbv[0], b.rgbv[1], b.rgbv[2]);
-            len += n;
-        } else {
-            buf[len++] = ';'; buf[len++] = '4';
-            buf[len++] = (char)('0' + (b.index & 7));
-        }
+    if (b.is_default) {
+        buf[len++] = ';';
+        buf[len++] = '4';
+        buf[len++] = '9';
+    } else if (b.rgb) {
+        int n = snprintf(buf + len, (size_t)(96 - len), ";48;2;%d;%d;%d",
+                         b.rgbv[0], b.rgbv[1], b.rgbv[2]);
+        len += n;
+    } else {
+        buf[len++] = ';'; buf[len++] = '4';
+        buf[len++] = (char)('0' + (b.index & 7));
     }
     buf[len++] = 'm';
     obuf_write(s, buf, len);

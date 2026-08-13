@@ -79,7 +79,7 @@ examples: $(TARGET) examples/min/00_runtime_only examples/min/01_draw_text examp
 examples/min/%: examples/min/%.c $(TARGET) $(EXTRA_TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
 
-games: $(TARGET) $(EXTRA_TARGET) examples/games/01_snake examples/games/02_pong examples/games/03_tetris examples/games/04_space_invaders examples/games/05_swarm examples/games/06_snake_grid examples/games/07_breakout examples/games/08_dino examples/games/09_dungeon examples/games/10_map_editor
+games: $(TARGET) $(EXTRA_TARGET) examples/games/01_snake examples/games/02_pong examples/games/03_tetris examples/games/04_space_invaders examples/games/05_swarm examples/games/06_snake_grid examples/games/07_breakout examples/games/08_dino examples/games/09_dungeon examples/games/10_map_editor examples/games/11_pacman
 
 examples/games/%: examples/games/%.c $(TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge -lm -o $@
@@ -111,6 +111,12 @@ examples/games/09_dungeon: examples/games/09_dungeon.c $(TARGET) $(EXTRA_TARGET)
 examples/games/10_map_editor: examples/games/10_map_editor.c $(TARGET) $(EXTRA_TARGET)
 	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
 
+examples/games/11_pacman: examples/games/11_pacman.c $(TARGET) $(EXTRA_TARGET)
+	$(CC) $(CFLAGS) $(INCLUDES) $< -L. -ltge-extra -ltge -lm -o $@
+
+tests/test_pacman: tests/test_pacman.c $(TARGET) $(EXTRA_TARGET)
+	$(CC) $(CFLAGS) -Wno-unused-function $(INCLUDES) -Isrc $< -L. -ltge-extra -ltge -lm -o $@
+
 bench: $(TARGET) benchmarks/bench_renderer benchmarks/bench_canvas_fill benchmarks/bench_draw_line
 	./benchmarks/bench_renderer
 	./benchmarks/bench_canvas_fill
@@ -140,4 +146,4 @@ clean:
 	rm -f fuzz/fuzz_parser
 	rm -f benchmarks/bench_renderer benchmarks/bench_canvas_fill benchmarks/bench_draw_line
 	rm -f examples/min/00_runtime_only examples/min/01_draw_text examples/min/02_input_keys examples/min/03_timer examples/min/04_colors examples/min/05_resize examples/min/06_mouse examples/min/07_extra_demo examples/min/08_grid_canvas
-	rm -f examples/games/01_snake examples/games/02_pong examples/games/03_tetris examples/games/04_space_invaders examples/games/05_swarm examples/games/06_snake_grid examples/games/07_breakout examples/games/08_dino examples/games/09_dungeon examples/games/10_map_editor
+	rm -f examples/games/01_snake examples/games/02_pong examples/games/03_tetris examples/games/04_space_invaders examples/games/05_swarm examples/games/06_snake_grid examples/games/07_breakout examples/games/08_dino examples/games/09_dungeon examples/games/10_map_editor examples/games/11_pacman

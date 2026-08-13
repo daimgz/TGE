@@ -138,17 +138,23 @@ void tge_draw_text(TGE_Canvas *canvas, int x, int y, const char *text,
     }
 }
 
-void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
-                const char *fmt, ...)
+void tge_vprintf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
+                 const char *fmt, va_list ap)
 {
     if (!canvas || !fmt)
         return;
     char buf[TGE_PRINTF_BUF] = { 0 };
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    tge_draw_text(canvas, x, y, buf, fg, bg);
+}
+
+void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
+                const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, ap);
+    tge_vprintf(canvas, x, y, fg, bg, fmt, ap);
     va_end(ap);
-    tge_draw_text(canvas, x, y, buf, fg, bg);
 }
 
 static int text_width(const char *text)

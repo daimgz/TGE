@@ -35,6 +35,14 @@ void     TGE_Destroy(TGE_App *app);
  * TGE_Quit is called or the terminal sends QUIT. */
 void     TGE_Run(TGE_App *app, tge_init_fn init, tge_update_fn update,
                  tge_draw_fn draw, tge_event_fn event);
+/* Runs exactly one iteration of the normal frame pipeline: event processing,
+ * update, draw, present, scene ops and frame limiting, in the engine's
+ * existing order (see docs/HOSTING_API.md). It does not create a new
+ * execution model: it makes visible the iteration TGE_Run already performs,
+ * so TGE_Run(app, ...) is contractually equivalent to
+ * while (!quit) TGE_Step(app). Quit state lives in the app and is read
+ * through the existing API; Step does not return it. */
+void     TGE_Step(TGE_App *app);
 /* Requests the main loop to exit after the current frame. */
 void     TGE_Quit(TGE_App *app);
 
@@ -44,6 +52,15 @@ bool TGE_PollEvent(TGE_App *app, TGE_Event *ev);
 void TGE_PushEvent(TGE_App *app, const TGE_Event *ev);
 TGE_Canvas *TGE_GetCanvas(TGE_App *app);
 TGE_Runtime *TGE_GetRuntime(TGE_App *app);
+
+/* Host slot on the app: opaque user data attached by the host/binding, so
+ * app callbacks (init/update/draw/event) can re-find their wrapper without
+ * a global TGE_App* -> object registry. TGE does not interpret the value and
+ * does not own it; the host manages the object's identity and lifetime.
+ * Readable/writable at any time from the game loop thread (see
+ * docs/HOSTING_API.md). */
+void  TGE_SetUserData(TGE_App *app, void *userdata);
+void *TGE_GetUserData(TGE_App *app);
 
 /* Caps the frame rate to the given FPS (0 disables the cap). */
 void TGE_SetFPS(TGE_App *app, float fps);

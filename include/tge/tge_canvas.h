@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,6 +90,13 @@ void tge_draw_text(TGE_Canvas *canvas, int x, int y, const char *text,
  *              " SCORE: %d ", score); */
 void tge_printf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
                 const char *fmt, ...);
+/* va_list variant of tge_printf: same behavior (fixed stack buffer, no
+ * allocation, snprintf-style truncation) but receives the argument list.
+ * tge_printf delegates here. C compatibility API for bindings and C
+ * trampolines that hold a va_list without crossing a C varargs boundary;
+ * a high-level binding formats its own way and lowers to the C API. */
+void tge_vprintf(TGE_Canvas *canvas, int x, int y, TGE_Color fg, TGE_Color bg,
+                 const char *fmt, va_list ap);
 
 /* Text centered horizontally on the canvas at row `y`. Width is measured in
  * display columns (wide UTF-8 chars count double), so centering survives

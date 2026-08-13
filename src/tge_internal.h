@@ -91,6 +91,7 @@ struct TGE_App {
     tge_update_fn update_cb;
     tge_draw_fn draw_cb;
     tge_event_fn event_cb;
+    void *userdata; /* host slot (TGE_SetUserData/TGE_GetUserData); TGE ignores it */
     TGE_Event app_events[TGE_APP_EVENT_PENDING];
     int app_event_count;
 };

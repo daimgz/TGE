@@ -1,26 +1,27 @@
 #include "tge_internal.h"
 #include <stdlib.h>
 
+/* Two colors are equal when their modes match and their payloads match. The
+ * union stores the payload per mode: an RGB color compared through the
+ * `index` member would only see the red byte, so each mode must read its own
+ * field. Default colors carry no payload and always compare equal. */
+static bool color_equal(const TGE_Color *a, const TGE_Color *b)
+{
+    if (a->mode != b->mode)
+        return false;
+    if (a->mode == TGE_COLOR_MODE_INDEXED)
+        return a->data.index == b->data.index;
+    if (a->mode == TGE_COLOR_MODE_DEFAULT)
+        return true;
+    return a->data.rgb.r == b->data.rgb.r &&
+           a->data.rgb.g == b->data.rgb.g &&
+           a->data.rgb.b == b->data.rgb.b;
+}
+
 static bool cell_equal(const TGE_Cell *a, const TGE_Cell *b)
 {
-    if (a->ch != b->ch || a->attr != b->attr)
-        return false;
-    if (a->fg.mode != b->fg.mode || a->bg.mode != b->bg.mode)
-        return false;
-    if (a->fg.mode == TGE_COLOR_MODE_INDEXED) {
-        return a->fg.data.index == b->fg.data.index &&
-               a->bg.data.index == b->bg.data.index;
-    }
-    /* Default colors carry no payload: both cells already have mode DEFAULT,
-     * so they are always equal regardless of any stale union data. */
-    if (a->fg.mode == TGE_COLOR_MODE_DEFAULT)
-        return true;
-    return a->fg.data.rgb.r == b->fg.data.rgb.r &&
-           a->fg.data.rgb.g == b->fg.data.rgb.g &&
-           a->fg.data.rgb.b == b->fg.data.rgb.b &&
-           a->bg.data.rgb.r == b->bg.data.rgb.r &&
-           a->bg.data.rgb.g == b->bg.data.rgb.g &&
-           a->bg.data.rgb.b == b->bg.data.rgb.b;
+    return a->ch == b->ch && a->attr == b->attr &&
+           color_equal(&a->fg, &b->fg) && color_equal(&a->bg, &b->bg);
 }
 
 void tge_renderer_diff(const TGE_Canvas *current, const TGE_Canvas *previous,

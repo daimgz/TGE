@@ -217,6 +217,11 @@ void tge_app_destroy(TGE_App *app)
     free(app);
 }
 
+void TGE_Step(TGE_App *app)
+{
+    tge_app_frame(app);
+}
+
 void TGE_Run(TGE_App *app, tge_init_fn init,
              tge_update_fn update, tge_draw_fn draw,
              tge_event_fn event)
@@ -231,7 +236,18 @@ void TGE_Run(TGE_App *app, tge_init_fn init,
     if (init)
         init(app);
     while (!app->quit)
-        tge_app_frame(app);
+        TGE_Step(app);
+}
+
+void TGE_SetUserData(TGE_App *app, void *userdata)
+{
+    if (app)
+        app->userdata = userdata;
+}
+
+void *TGE_GetUserData(TGE_App *app)
+{
+    return app ? app->userdata : NULL;
 }
 
 void TGE_Quit(TGE_App *app)
