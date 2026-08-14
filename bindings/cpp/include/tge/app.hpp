@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tge/tge_app.h"
+#include "tge/canvas.hpp"
 #include "tge/input.hpp"
 #include "tge/color.hpp"
 
@@ -13,9 +14,16 @@ namespace tge {
 struct App {
     TGE_App *raw;
     bool quit_ = false;
+    bool own_ = true;
 
-    App(int w, int h, const char *title) : raw{TGE_Create(w, h, title)} {}
-    ~App() { if (raw) TGE_Destroy(raw); }
+    /* Owning ctor: creates the app (TGE_Create) and destroys it on scope exit. */
+    App(int w, int h, const char *title) : raw{TGE_Create(w, h, title)} {
+        own_ = (raw != nullptr);
+    }
+    /* Adopting ctor: wraps an already-created TGE_App* (e.g. one built on a
+     * mock backend for tests) without taking ownership. */
+    explicit App(TGE_App *adopted) : raw{adopted}, own_{false} {}
+    ~App() { if (raw && own_) TGE_Destroy(raw); }
 
     App(const App &) = delete;
     App &operator=(const App &) = delete;
@@ -38,7 +46,7 @@ struct App {
 
     void quit() { quit_ = true; TGE_Quit(raw); }
 
-    TGE_Canvas *canvas() { return TGE_GetCanvas(raw); }
+    Canvas canvas() { return Canvas{TGE_GetCanvas(raw)}; }
 
     void set_title(const char *t) { TGE_SetTitle(raw, t); }
     void set_fps(float f)        { TGE_SetFPS(raw, f); }

@@ -818,15 +818,6 @@ La sonda compila y corre limpia (sin warnings, sin stderr en runtime) enlazando
   designated initializers, inválidos en C++. El wrapper `tge::Color` los sustituye
   con `tge_color_indexed(...)` y constructores nombrados. No es fallo de contrato:
   azúcar de C que la proyección resuelve.
-- **(idiomática C++)** La paleta (`TGE_TileSet`/`TGE_TileLegend`) y el callback de
-  resize (`tge_grid_layout_resize_fn` + `void*`) son la forma C del contrato;
-  `tge::TileMap`/`tge::Playfield` los exponen tal cual. Aceptable; una proyección
-  puede ocultarlos (p.ej. `std::function`).
-- **(C, candidato a freeze 1.0)** No hay accessor público de "¿sigue corriendo?"
-  en el loop manual: la sonda tuvo que trackear su propio `quit_` (lo fija al ver
-  `TGE_EVENT_QUIT`). Sugerir `bool TGE_IsRunning(TGE_App*)` o que `TGE_Step`
-  devuelva `bool`. **Pendiente de decisión en §6.4 / IMPLEMENTATION_PLAN.md 6.5**,
-  no aplicado todavía.
 - **(C, candidato a freeze 1.0 — sin fix automático)** El loop manual
   (`TGE_Step` + el caller dibuja + `TGE_PollEvent`) no es una superficie pública
   de primera clase: no hay setter público de `draw`/`update`/`event` callback (solo
@@ -839,15 +830,51 @@ La sonda compila y corre limpia (sin warnings, sin stderr en runtime) enlazando
   ruido de API); **Modelo B** — `TGE_Run` + loop manual first-class (`TGE_IsRunning`
   + `TGE_SetDrawCallback` + `TGE_Step` con semántica de presentación definida). Ver
   IMPLEMENTATION_PLAN.md §6.5 / §8.
-  - Detalle de contrato no obvio (también hallado por la sonda): el callback de
-    resize debe llamar `tge_view_update(&pf.view, ...)`; al omitirlo la vista
-    quedaba vacía (`tge_view_contains` siempre `false`) y la serpiente no entraba
-    al escenario (quedaba clavada en la esquina). Corregido en el ejemplo; el
-    contrato es correcto, solo poco evidente.
+  - Detalle de contrato no obvio (hallado por la sonda): el callback de resize debe
+    llamar `tge_view_update(&pf.view, ...)`; al omitirlo la vista quedaba vacía
+    (`tge_view_contains` siempre `false`) y la serpiente no entraba al escenario.
+    Corregido en el clone; el contrato es correcto, solo poco evidente.
 - **(positivo)** `Vec2i` (aritmética de operadores), `Direction` (helpers como
-  métodos), `Actor::set_position`/`draw`, `App` (RAII oculta `TGE_App*`) resultaron
-  cómodos sin pelearse con C. Confirma que la API C permite una proyección C++
-  limpia antes del freeze.
+  métodos), `App` (RAII oculta `TGE_App*`), `Canvas` (no-owning handle), `Sprite`
+  (value type), `GridTheme` (owning) resultaron cómodos sin pelearse con C. Confirma
+  que la API C permite una proyección C++ limpia antes del freeze.
+- **(regla de diseño de la sonda, consumer-driven NO coverage-driven)** La lógica del
+  juego usa `tge::` exclusivamente; el C puro se limita a una **frontera de adaptación**
+  de 4 callbacks (`TGE_Run` + callback de resize) donde aparecen `TGE_App*`/
+  `TGE_Canvas*`/`TGE_Event*`/`TGE_GetUserData`. El clone se revisó contra
+  `06_snake_grid.c` y es el **mismo juego** (cuerpo de 3, comida, crecimiento,
+  `FixedStep` 0.10s, `InputBuffer` 4, muerte por muro/auto-colisión, pausa, score,
+  overlay). `Actor` está validado por la sonda independiente pero el clone no lo usa
+  (dibuja con `set_cell_local`/`put_local` directos). No se agregan wrappers `tge::`
+  hasta que un consumidor real lo justifique.
+- **(C, claridad de contrato — hallado en la revisión)**
+  `tge_playfield_sync`/`tge_grid_layout_sync` esperan el tamaño **físico** del
+  canvas; pasar el tamaño lógico de la grilla produce una **conversión doble** y el
+  campo queda a mitad de ancho. Corregido pasando `cv.width()/cv.height()` directo
+  (igual que `06_snake_grid.c`). Verificado por test: canvas 40×16 / 2×1 → grilla
+  20×15 (`set_origin(0,1)` reserva la fila HUD, fiel a `06`) → interior 18×13.
+  Sugerencia de doc: aclarar en el header que `surface_w/h` es tamaño físico.
+- **(idiomática C++) — GAPs registrados (lo que ESCAPA a C):** la pregunta no es
+  "¿hay un tipo C en el código?" sino "¿un usuario C++ necesita tocar ese tipo C para
+  una operación normal?". Si no, está cubierto por wrapper idiomático.
+  - `TGE_View` — la lógica lee `view().area.w/h`: **GAP**, no hay `tge::View`.
+  - `TGE_VIEW_FIRST_VALID` / `TGE_VIEW_RESIZED` / `TGE_VIEW_INVALID` — el switch de
+    `world_resize` los consume directo: **GAP** (clasificación de layout en C).
+  - `TGE_GRID_SCALE_2X1` — pasado a `playfield.init`: **GAP** (constante de escala en C).
+  - Cubierto por wrappers (no GAP): `tge::Canvas`, `tge::Sprite`, `tge::GridTheme`
+    (owning), `tge::Playfield`, `tge::Color`, `tge::FixedStep`, `tge::InputBuffer`.
+    La paleta de `TileMap` (`TGE_TileSet`) se difiere: el clone no la consume, así
+    que `tge::TileSet` no se agrega (sin consumidor que justifique el wrapper).
+- **(C++, corregido en la sonda) Ownership de `GridTheme`:** es *owning* (posee 4
+  `Sprite`s y construye un `TGE_GridTheme` que solo toma prestados punteros). Una
+  copia/movimiento *member-wise* dejaría `raw.tiles[i].sprite` apuntando a los
+  `sprites[]` del origen (colgante). Corregido en el wrapper con `bind()` que reenlaza
+  los punteros al `sprites[]` propio tras copy/move. `Sprite` es value type (POD sobre
+  literales estáticos), copia superficial segura. Test: `probe_gridtheme_sprite_ownership`.
+- **(ámbito de la sonda)** La sonda tiene su batería de pruebas headless
+  (`bindings/cpp/tests/test_snake.cpp` con mock backend, lee `app->previous->cells`):
+  view sizing sin doble conversión, muerte por muro, crecimiento tras comer,
+  auto-colisión, render de cabeza/cuerpo/muros, y ownership de `Sprite`/`GridTheme`.
 
 ### Rust / Zig (post-1.0)
 

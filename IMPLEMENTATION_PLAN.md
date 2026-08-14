@@ -182,30 +182,68 @@ Declarar "esta es la API 1.0" cambia la economía: a partir de ahí importa más
 
 Como herramienta de diseño **antes** del freeze 1.0, se construye una proyección
 C++ **mínima, real y deliberadamente incompleta** (`bindings/cpp/`) que consume la
-API C estable y la envuelve en `tge::`. No es un binding completo: cubre solo 7
-piezas representativas (`Vec2i`, `Direction`, `Input`, `Actor`, `TileMap`,
-`Playfield`, `App`) y un ejemplo real pequeño (`examples/snake.cpp`).
+API C estable y la envuelve en `tge::`. No es un binding completo. Cubre 7 piezas
+centrales (`Vec2i`, `Direction`, `Input`→`Event`, `Actor`*, `TileMap`, `Playfield`,
+`App`) + extensiones que el juego real necesitó (`Color`, `Sprite`, `Canvas`,
+`GridTheme`, `FixedStep`, `InputBuffer`). Un ejemplo real — el **clone fiel de
+`06_snake_grid.c`** (misma jugabilidad: cuerpo de 3, comida, crecimiento, `FixedStep`
+0.10s, `InputBuffer` 4, muerte por muro/auto-colisión, pausa, score, overlay; lógica
+en `examples/snake_game.hpp`) — tiene su batería de pruebas headless en
+`bindings/cpp/tests/test_snake.cpp` (mock backend de `tests/mock_backend.h`, lee el
+framebuffer vía `app->previous->cells`), para validar sin terminal.
 
-Objetivo: responder *"¿la API C permite construir una interfaz C++ limpia sin
-pelearse con ella?"* — no solo *"¿compila C++ contra TGE?"*. El ejemplo debe
-demostrar que la abstracción C++ es genuinamente más cómoda que consumir C
-directo (p.ej. `actor.set_position({10,5})` en vez de
-`tge_actor_set_position(actor, pos)`), y revelar fricciones (`raw()` constantes,
-casts visibles, ownership expuesto, firmas con demasiados argumentos).
+*`Actor` está validado por la sonda independiente pero el clone NO lo usa (dibuja con
+`set_cell_local`/`put_local` directos sobre el grid); se mantiene fuera del clone a
+propósito.
 
-Regla de frontera (ver §12): **C es el contrato ABI; C++ es proyección, nunca
-intermediario** (`Python→C`, `Rust→C`, `Zig→C`, `C++→C`; nunca `X→C++→C`). Si un
-hallazgo afecta la **semántica/contrato** de TGE → se propone fix en C antes del
-freeze (§6.4); si es **expresión idiomática C++** → se resuelve en `tge::`.
+Regla de diseño de la sonda: **la lógica del juego usa `tge::` exclusivamente**;
+el C puro se concentra en una **frontera de adaptación** mínima (los 4 callbacks
+que `TGE_Run` requiere + el callback de resize). La sonda cumplirá su objetivo
+solo si revela fricciones; por eso **no** se agregan wrappers C nuevos para
+"acomodar" el ejemplo — las lagunas se registran como hallazgos.
 
-Entregable de cierre: un reporte de hallazgos ergonómicos (nombres,
-ownership/lifecycle, nº de argumentos, value-types, agrupación, retornos) con
-cada ítem clasificado (a) fix-C / (b) idiomática-C++. Hallazgos registrados en
-`PLAN_ENTRENAMIENTO.md` (sección Bindings / proyecciones). Destacado: el loop
-manual no es superficie pública de primera clase (la sonda lo detectó al quedar la
-pantalla en negro con `TGE_Step`+draw; corregido con `TGE_Run`). Se registra como
-candidato de freeze **sin fix automático** (no se toca `src/` por comodidad del
-ejemplo): falta un segundo consumidor que justifique el loop manual en 1.0.
+Hallazgos registrados (clasificación C-vs-C++):
+- **extern "C" en umbrella** (`include/tge/tge.h`): el umbrella no incluía el
+  bloqueo `extern "C"`, por lo que los headers subyacentes necesitaban
+  `extern "C"`). **Fix-C aplicado** (C) antes del freeze. ✅
+- **Loop manual no es superficie pública de primera clase**: la sonda lo detectó
+  al quedar la pantalla negra con `TGE_Step`+draw (el canvas se presenta dentro
+  del frame). Corregido usando `TGE_Run` con callbacks. Registrado como
+  **candidato de freeze sin fix automático** (ver §8): falta un segundo
+  consumidor que justifique un loop manual + `TGE_IsRunning` en 1.0.
+- **Sin doble conversión de grilla**: el clone pasa el tamaño **físico** del canvas
+  (`cv.width()/cv.height()`) a `playfield.sync`; `tge_playfield_sync`/`tge_grid_layout_sync`
+  derivan la grilla internamente. Verificado por test: canvas 40×16 / 2×1 → grilla
+  20×15 (el `set_origin(0,1)` reserva la fila HUD, fiel a `06`) → interior 18×13.
+  Sugerencia de doc: aclarar en el header que `surface_w/h` es tamaño físico.
+- **Lagunas C++ — lo que ESCAPA a C (lo único que un usuario C++ necesita tocar
+  del tipo C para una operación normal del motor).** La pregunta no es "¿hay un tipo
+  C en el código?", sino "¿un usuario C++ necesita conocer ese tipo C para realizar
+  una operación normal?". Si la respuesta es no, está cubierto por un wrapper
+  idiomático (boundary/bridge cuenta como C aceptable). Registrado, sin wrapper nuevo:
+  - `TGE_View` — la lógica lee `view().area.w/h`: **GAP**, no hay `tge::View`.
+  - `TGE_VIEW_FIRST_VALID` / `TGE_VIEW_RESIZED` / `TGE_VIEW_INVALID` — el switch de
+    `world_resize` los consume directo: **GAP** (clasificación de layout en C).
+  - `TGE_GRID_SCALE_2X1` — pasado a `playfield.init`: **GAP** (constante de escala en C).
+  - Superficie CUBIERTA por wrappers (no GAP): `tge::Sprite` (value type),
+    `tge::Canvas`, `tge::GridTheme` (owning; ver ownership abajo), `tge::Playfield`,
+    `tge::Color`, `tge::FixedStep`, `tge::InputBuffer`. La paleta de `TileMap`
+    (`TGE_TileSet`) se difiere: el clone no la consume, así que `tge::TileSet` no se
+    agrega (no hay consumidor que justifique el wrapper).
+- **Ownership de `GridTheme` (hallazgo de la sonda, corregido en C++):** `GridTheme`
+  es *owning* (posee 4 `Sprite`s y construye un `TGE_GridTheme` que solo **toma
+  prestados** punteros). Una copia/movimiento *member-wise* dejaría `raw.tiles[i].sprite`
+  apuntando a los `sprites[]` del objeto origen (colgante tras destruirlo). Corregido
+  en el wrapper con `bind()` que reenlaza los punteros al `sprites[]` propio tras
+  copy/move. `Sprite` es value type (POD sobre literales estáticos), copia superficial
+  segura. Test: `probe_gridtheme_sprite_ownership`.
+
+> **Orden de trabajo (comportamiento primero, wrappers después):** compilar →
+> tilemap smoke → view sizing → wall death → growth → self collision → render →
+> ownership, y **luego** documentar. Esto evita diseñar la API C++ para que el clone
+> pase, en vez de dejar que el clone revele dónde la API C ya tiene buena semántica y
+> dónde realmente falta una proyección. No se agregan wrappers `tge::` hasta que un
+> consumidor real lo justifique (regla consumer-driven, no coverage-driven).
 
 ---
 
