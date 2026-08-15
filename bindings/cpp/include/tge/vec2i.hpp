@@ -22,6 +22,14 @@ struct Vec2i {
     bool operator==(Vec2i o) const  { return tge_vec2i_eq(raw, o.raw); }
     bool operator!=(Vec2i o) const  { return !(*this == o); }
 
+    /* Squared Euclidean distance to `o` (mirrors tge_vec2i_dist2). Returns the
+     * squared distance so ghost targeting avoids the sqrt the C avoids too. */
+    int dist2(Vec2i o) const {
+        int dx = raw.x - o.raw.x;
+        int dy = raw.y - o.raw.y;
+        return dx * dx + dy * dy;
+    }
+
     operator TGE_Vec2i() const { return raw; }
 };
 

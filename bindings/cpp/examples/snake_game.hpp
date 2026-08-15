@@ -3,10 +3,12 @@
 /* tge:: Snake — C++ clone of examples/games/06_snake_grid.c.
  *
  * Same game, same behaviour, same world/renderer split — but expressed over
- * the tge:: wrappers. The GAME LOGIC uses only tge:: types; the only raw-C
- * surface is the 4 bridge callbacks (the unavoidable TGE_Run boundary) plus a
- * handful of operations the sonda has not wrapped yet, each marked GAP and
- * registered in IMPLEMENTATION_PLAN.md §6.5.
+ * the tge:: wrappers. The GAME LOGIC uses only tge:: types; the raw-C surface
+ * is limited to: (a) the 3 TGE_Run callbacks (update/draw/event bridges — the
+ * unavoidable TGE_Run boundary) and (b) the resize bridge passed to
+ * playfield.sync. The view size/scale/classification (TGE_View, TGE_GRID_SCALE_*,
+ * TGE_VIEW_*) are now wrapped (tge::Playfield width/height/origin_*, tge::GridScale,
+ * tge::ViewUpdate); remaining unwrapped operations are registered in §6.5.
  */
 
 #include "tge/app.hpp"
@@ -61,7 +63,7 @@ public:
     enum State { Running, Over } state = Running;
 
     explicit Game(tge::App &a) : app(a) {
-        playfield.init(SNAKE_THEME, TGE_GRID_SCALE_2X1, 10, 6);
+        playfield.init(SNAKE_THEME, tge::GridScale::Scale2X1, 10, 6);
         playfield.set_origin(0, 1);            // leave the HUD row (like 06)
         app.set_userdata(this);
         world_reset();
@@ -69,11 +71,11 @@ public:
 
     /* --- world (SnakeWorld in 06) --- */
     void world_reset() {
-        const TGE_View &v = playfield.view();
+        int w = playfield.width(), h = playfield.height();
         body.clear();
-        body.push_back(Vec2i(v.area.w / 2, v.area.h / 2));
-        body.push_back(Vec2i(v.area.w / 2 - 1, v.area.h / 2));
-        body.push_back(Vec2i(v.area.w / 2 - 2, v.area.h / 2));
+        body.push_back(Vec2i(w / 2, h / 2));
+        body.push_back(Vec2i(w / 2 - 1, h / 2));
+        body.push_back(Vec2i(w / 2 - 2, h / 2));
         direction = Direction::Right;
         score = 0;
         state = Running;
@@ -87,10 +89,10 @@ public:
         // GAP: tge_view_update lives in C (no tge::View wrapper); returns the
         // layout-classification enum the clone switches on, exactly like 06.
         switch (playfield.update_view(gw, gh)) {
-        case TGE_VIEW_FIRST_VALID:
+        case tge::ViewUpdate::FirstValid:
             world_reset();
             break;
-        case TGE_VIEW_RESIZED:
+        case tge::ViewUpdate::Resized:
             for (auto &c : body)
                 c = playfield.clamp_local(c);
             if (!playfield.contains(food)) {
@@ -98,7 +100,6 @@ public:
                     state = Over;
             }
             break;
-        case TGE_VIEW_INVALID:
         default:
             break;
         }
@@ -136,16 +137,15 @@ public:
     }
 
     bool spawn_food() {
-        if (!playfield.valid())
+        if (playfield.width() * playfield.height() - (int)body.size() <= 0)
             return false;
-        for (int guard = 0; guard < 1000; guard++) {
+        for (;;) {
             Vec2i p = playfield.random_point();
             bool free = true;
             for (const auto &c : body)
                 if (c == p) { free = false; break; }
             if (free) { food = p; return true; }
         }
-        return false;
     }
 
     /* --- world_update (TGE_Game update callback path) --- */
@@ -190,8 +190,10 @@ public:
 
     /* --- input (world_handle_input in 06) --- */
     void on_event(const tge::Event &e) {
-        if (e.type() == tge::EventType::Resize)
+        if (e.type() == tge::EventType::Resize) {
+            if (state != Over) paused = true; // like 06: pause after a valid resize
             return; // playfield.sync in update() handles canvas changes
+        }
         if (e.pause()) {
             if (state != Over) paused = !paused;
             return;
@@ -213,8 +215,9 @@ public:
     }
 
 public:
-    /* --- TGE_Run boundary: the only place raw TGE_App* / TGE_Canvas* / TGE_Event*
-     * appear. Public so harness/tests can wire callbacks directly. --- */
+    /* --- TGE_Run / sync boundary: the only place raw TGE_App* / TGE_Canvas* /
+     * TGE_Event* (and, for the resize bridge, void* userdata) appear. Public so
+     * harness/tests can wire callbacks directly. --- */
     static void update_bridge(TGE_App *app, float dt) {
         static_cast<Game *>(TGE_GetUserData(app))->update(dt);
     }

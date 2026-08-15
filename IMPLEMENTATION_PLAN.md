@@ -1,8 +1,8 @@
-# Implementation Plan — Cierre TGE v1.0 + roadmap post-1.0
+# Implementation Plan — TGE Beta 1 (freeze de API) + roadmap a v1.0 final
 
-**Estado:** En consolidación (Fase 4 — auditoría/cierre de API). Fase 3b cerrada en #10 (Minesweeper). Fase 5 = release v1.0 (siguiente).
+**Estado:** Fase 4 cerrada (auditoría de API + freeze C++ 1.0 para Beta 1 + validación post-freeze Minesweeper + migración de ejemplos al Game adapter + loop manual diferido). Fase 5 = Release Beta 1 (siguiente, pendiente de tag/versión).
 **Base:** `ADR.md` (26 decisiones arquitectónicas), `PLAN_ENTRENAMIENTO.md` (roadmap por juegos).
-**Objetivo:** Este documento **ya no es un plan de construcción desde cero**. TGE tiene hoy un núcleo validado, varios juegos consumidores y un `tge-extra` bastante desarrollado. El objetivo ahora es (a) documentar qué está validado, (b) cerrar una **API 1.0 deliberadamente congelada y documentada**, y (c) señalar el roadmap post-1.0. La regla rectora sigue siendo la de Fase 3b: *el módulo se implementa cuando un juego lo pide, no antes*.
+**Objetivo:** Este documento **ya no es un plan de construcción desde cero**. TGE tiene hoy un núcleo validado, varios juegos consumidores y un `tge-extra` bastante desarrollado. El objetivo ahora es (a) documentar qué está validado, (b) cerrar una **API congelada para Beta 1** (la proyección C++ queda como 1.0 dentro de la beta), y (c) señalar el roadmap a v1.0 final. La regla rectora sigue siendo la de Fase 3b: *el módulo se implementa cuando un juego lo pide, no antes*.
 
 > **Distinción importante:** en este documento, **"auditado" ≠ "cumple automáticamente"**. Una auditoría puede concluir "cumple", "cumple con salvedad (evitable pre-reservando)" o "issue de Fase 4". Cada caso se documenta con su evidencia.
 
@@ -138,9 +138,12 @@ Esto es lo opuesto a "voy a necesitar A* algún día → implementemos A* ahora"
 | F2 | Engine / Scenes / Math / Snake | ✅ DONE |
 | F3 | Core gameplay validation (Pong, Tetris, Invaders) | ✅ DONE |
 | F3b | tge-extra validation (Snake, Breakout, Pac-Man, Sokoban, Minesweeper) | ✅ DONE (cerrada en #10) |
-| **F4** | **Consolidación / API audit** | **← ACTUAL** |
-| **F5** | **Release v1.0** | **← SIGUIENTE** |
-| Post-1.0 | FOV, Pathfinding, Noise, AI, Camera, Palette/Theme, Python bindings | por diseñar |
+| **F4** | **Consolidación / API freeze para Beta 1** | **✅ DONE** |
+| **F5** | **Release Beta 1** | **← SIGUIENTE** |
+| F6 | Feedback / estabilización (Beta 2) | futuro |
+| F7 | Release Candidate | futuro |
+| F8 | v1.0 final | futuro |
+| Post-v1.0 | FOV, Pathfinding, Noise, AI, Camera, Palette/Theme, Python bindings | por diseñar |
 
 La contradicción anterior ("Fase 4: tge-extra (módulos opcionales)" vs. checklist lleno de `[x]`) queda resuelta: esos módulos **ya están implementados**; Fase 4 es ahora consolidación y auditoría, no implementación.
 
@@ -174,13 +177,45 @@ La regla "sin `malloc` en render path" ya estaba verificada (strace/valgrind). C
 
 **Conclusión:** ninguna asignación ocurre en el query/consulta ni en `draw`/`update` por frame. El crecimiento on-demand de `array`/`collision-world`/`entity-pool` *puede* asignar en runtime, pero es amortizado y se evita si se pre-reserva la capacidad. Cumple la regla ADR-015; se documenta la salvedad para no fingir "cero allocs en任何 momento".
 
-### 6.4 Freeze de API 1.0 — **decisión / acción de cierre (no hecho)**
+### 6.4 Freeze de la proyección C++ para Beta 1 — **hecho (Fase 4)**
 
-Declarar "esta es la API 1.0" cambia la economía: a partir de ahí importa más qué **no** agregar. Las propuestas post-1.0 (`TGE_CreateConfig`, `TGE_SurfaceObserver`, `TGE_View` fuera del mundo, `RingBuffer`, `PointDeque`, `ColorTheme`) se reconsideran solo si cierran una inconsistencia real, no por adelantarse al uso. Ver §10 y §12.
+Declarar "esta es la API de Beta 1" cambia la economía: a partir de ahí importa más qué **no** agregar. Las propuestas post-Beta-1 (`TGE_CreateConfig`, `TGE_SurfaceObserver`, `TGE_View` fuera del mundo, `RingBuffer`, `PointDeque`, `ColorTheme`) se reconsideran solo si cierran una inconsistencia real, no por adelantarse al uso.
+
+**Superficie C++ 1.0 (Beta 1) — validada y congelada.** La `tge::` se considera validada por tres consumidores reales (Snake, Sokoban y Pac-Man), con **78 tests pasando** (24 + 27 + 27), y **durante esta beta no se agregarán wrappers adicionales sin un nuevo consumidor que justifique la necesidad**. Esta regla evita que `tge::` crezca por intuición: toda promoción es *consumer-driven*, no *coverage-driven*.
+
+Superficie congelada:
+
+```text
+tge::App / Canvas
+tge::Playfield
+tge::Vec2i / Direction / Rect
+tge::TileMap        (init/get/set/count/draw + width()/height() + load_ascii(lambda))
+tge::TileSet
+tge::Actor          (position/sprite/set_fg/set_bg/draw(Playfield&))
+tge::FixedStep / InputBuffer / Event
+tge::Sprite / Color / GridTheme
+```
+
+Escape hatch C deliberado (se mantiene crudo, no se envuelve):
+
+```text
+UTF-8 decode + raw grid drawing (MAZE_VISUAL box-art en Pac-Man)
+```
+
+Fuera de la superficie de Beta 1 por falta de evidencia de consumidor: `tge::Scene` / `tge::Game`
+(los probes los evitan vía `TGE_Run` + callbacks; cualquier promoción requiere un consumidor
+real, p.ej. un probe con apilado de escenas).
+
+Criterio de cambios post-freeze: una vez declarada Beta 1, los cambios son decisión de 1.1 / Beta 2 y
+solo si hay un problema real — no "porque se vea más C++". Mejoras puramente cosméticas en
+los probes (p.ej. simplificar `world_resize`, eliminar estado redundante) no alteran el
+contrato de Beta 1 y no son necesarias para cerrar. Minesweeper deja de ser "el siguiente juego a
+hacer" y pasa a ser una **sonda opcional** para una futura extensión — particularmente para
+*mouse*, superficie que aún no tiene consumidor C++. Ver §10 y §12.
 
 ### 6.5 Sonda `tge::` (C++ ergonomics probe) — **entregable (Fase 4)**
 
-Como herramienta de diseño **antes** del freeze 1.0, se construye una proyección
+Como herramienta de diseño **antes** del freeze de Beta 1, se construye una proyección
 C++ **mínima, real y deliberadamente incompleta** (`bindings/cpp/`) que consume la
 API C estable y la envuelve en `tge::`. No es un binding completo. Cubre 7 piezas
 centrales (`Vec2i`, `Direction`, `Input`→`Event`, `Actor`*, `TileMap`, `Playfield`,
@@ -191,16 +226,39 @@ centrales (`Vec2i`, `Direction`, `Input`→`Event`, `Actor`*, `TileMap`, `Playfi
 en `examples/snake_game.hpp`) — tiene su batería de pruebas headless en
 `bindings/cpp/tests/test_snake.cpp` (mock backend de `tests/mock_backend.h`, lee el
 framebuffer vía `app->previous->cells`), para validar sin terminal.
+Un segundo ejemplo — **clone fiel de `12_sokoban.c`** (misma jugabilidad: empujar
+cajas a goals, undo, niveles, event-driven sin `FixedStep`/`InputBuffer`; lógica en
+`examples/sokoban_game.hpp`) — en `bindings/cpp/tests/test_sokoban.cpp`. Es el
+**primer consumidor real de `tge::TileMap`** (carga/consulta/mutación/dibujo de un
+nivel mutable) y reusa `tge::Playfield`/`tge::GridTheme`/`tge::Sprite`/`tge::Event`,
+confirmando que `Playfield` generaliza más allá de Snake.
 
-*`Actor` está validado por la sonda independiente pero el clone NO lo usa (dibuja con
-`set_cell_local`/`put_local` directos sobre el grid); se mantiene fuera del clone a
-propósito.
+Un tercer ejemplo — **clone fiel (traducción 1:1) de `11_pacman.c`** (misma
+jugabilidad **y misma estructura**: maze `TGE_TileMap`, Pac-Man + 4 fantasmas como
+`tge::Actor`, IA scatter/chase/frightened por distancia², tunnel wrap, power pellets,
+vidas, pausa; lógica en `examples/pacman_game.hpp`) — en
+`bindings/cpp/tests/test_pacman.cpp`. Es el **primer consumidor real de juego de
+`tge::Actor`** (4 fantasmas + Pac-Man), que era la laguna abierta de la auditoría
+Sokoban (§6.6): `Actor` estaba validado aislado pero sin consumidor de juego. La
+traducción fiel confirma que `Actor` es la forma correcta de modelar a los actores,
+pero **superficia 3 GAPs** del wrapper (ver abajo): `Actor` no expone `fg`/`bg`,
+`Actor::draw` recibe `TGE_View`/`TGE_GridView` crudos, y `tge::TileMap` no expone
+`width`/`height`. También re-ejercita `tge::TileMap` (mutable + markers de entidad) y
+`tge::FixedStep`/`tge::InputBuffer` en un juego de referencia distinto a Snake.
 
-Regla de diseño de la sonda: **la lógica del juego usa `tge::` exclusivamente**;
-el C puro se concentra en una **frontera de adaptación** mínima (los 4 callbacks
-que `TGE_Run` requiere + el callback de resize). La sonda cumplirá su objetivo
-solo si revela fricciones; por eso **no** se agregan wrappers C nuevos para
-"acomodar" el ejemplo — las lagunas se registran como hallazgos.
+*`Actor` estaba validado por la sonda independiente pero SIN consumidor de juego; el
+clone de Pac-Man lo consume de verdad (4 fantasmas + Pac-Man vía `Actor::draw`), así
+que la laguna de §6.6 queda cerrada en cuanto a *forma*: `tge::Actor` es la
+proyección correcta. Pero la traducción fiel reveló que aún le faltan proyecciones
+(`fg`/`bg`, firma de `draw`), ahora registradas como GAPs.
+
+Regla de diseño de la sonda: **el C++ es una traducción fiel del C**, cambiando
+sólo la sintaxis necesaria para consumir los wrappers `tge::` que ya existen y las
+desviaciones de alcance explícitamente declaradas. Donde el wrapper **no** cubre la
+API C, se conserva la llamada C cruda y se **registra como GAP** (no se reimplementa
+la primitiva, no se minimiza el C a ciegas). La sonda cumple su objetivo sólo si revela
+fricciones; por eso **no** se agregan wrappers `tge::` nuevos para "acomodar" el
+ejemplo — las lagunas se registran como hallazgos para decidirlas tras el freeze de Beta 1.
 
 Hallazgos registrados (clasificación C-vs-C++):
 - **extern "C" en umbrella** (`include/tge/tge.h`): el umbrella no incluía el
@@ -210,7 +268,7 @@ Hallazgos registrados (clasificación C-vs-C++):
   al quedar la pantalla negra con `TGE_Step`+draw (el canvas se presenta dentro
   del frame). Corregido usando `TGE_Run` con callbacks. Registrado como
   **candidato de freeze sin fix automático** (ver §8): falta un segundo
-  consumidor que justifique un loop manual + `TGE_IsRunning` en 1.0.
+  consumidor que justifique un loop manual + `TGE_IsRunning` en Beta 1.
 - **Sin doble conversión de grilla**: el clone pasa el tamaño **físico** del canvas
   (`cv.width()/cv.height()`) a `playfield.sync`; `tge_playfield_sync`/`tge_grid_layout_sync`
   derivan la grilla internamente. Verificado por test: canvas 40×16 / 2×1 → grilla
@@ -221,22 +279,87 @@ Hallazgos registrados (clasificación C-vs-C++):
   C en el código?", sino "¿un usuario C++ necesita conocer ese tipo C para realizar
   una operación normal?". Si la respuesta es no, está cubierto por un wrapper
   idiomático (boundary/bridge cuenta como C aceptable). Registrado, sin wrapper nuevo:
-  - `TGE_View` — la lógica lee `view().area.w/h`: **GAP**, no hay `tge::View`.
-  - `TGE_VIEW_FIRST_VALID` / `TGE_VIEW_RESIZED` / `TGE_VIEW_INVALID` — el switch de
-    `world_resize` los consume directo: **GAP** (clasificación de layout en C).
-  - `TGE_GRID_SCALE_2X1` — pasado a `playfield.init`: **GAP** (constante de escala en C).
-  - Superficie CUBIERTA por wrappers (no GAP): `tge::Sprite` (value type),
-    `tge::Canvas`, `tge::GridTheme` (owning; ver ownership abajo), `tge::Playfield`,
-    `tge::Color`, `tge::FixedStep`, `tge::InputBuffer`. La paleta de `TileMap`
-    (`TGE_TileSet`) se difiere: el clone no la consume, así que `tge::TileSet` no se
-    agrega (no hay consumidor que justifique el wrapper).
+   - Superficie CUBIERTA por wrappers (no GAP): `tge::Sprite` (value type),
+     `tge::Canvas`, `tge::GridTheme` (owning; ver ownership abajo), `tge::Playfield`
+     (incluye `width()`/`height()`/`origin_*()` que esconden `TGE_View`/`TGE_Rect`),
+     `tge::TileMap` (consumido por el clone de Sokoban: init/get/set/count/load_ascii/
+     draw), `tge::Color`, `tge::FixedStep`, `tge::InputBuffer`, `tge::ViewUpdate`
+     (enum espejo de `TGE_ViewUpdate`, devuelto por `Playfield::update_view`),
+     `tge::GridScale` (enum espejo de `TGE_GridScale`, tomado por `Playfield::init`),
+     `tge::TileSet` (wrapper *owning* sobre `TGE_TileSet`, análogo a `tge::GridTheme`;
+     consumidor: Sokoban).
+   - **`TileMap::load_ascii` (loader C) — resuelto como fachada idiomática C++ (revisado
+      tras Pac-Man, ver §6.7):** el loader `tge_tilemap_load_ascii` exige C crudo:
+      `TGE_TileLegend` (tabla glyph→rol, POD trivial) + un callback `TGE_TileMarkerFn`
+      (raw function pointer). Sokoban lo ejercita vía `SOKO_LEGEND` + `&Game::level_marker`;
+      Pac-Man repite el **mismo patrón** (`PACMAN_LEGEND` + `&Game::level_marker`, con
+      markers `P/1-4/H/A-D` que reescriben roles). Dos consumidores reales confirmaron que
+      era un punto de **diseño de API** (no solo "exponer un tipo C"): la fricción es el
+      legend/marker callback, no la estructura del tilemap. Resuelto en la tercera pasada
+      como **fachada de ergonomía** sobre el contrato C (overload C++ de `load_ascii` que
+      toma `std::initializer_list<TileLegend>` + un callable lambda; el overload C original
+      se mantiene para interop). La paleta (`TGE_TileSet`) ya fue promovida a `tge::TileSet`;
+      `TGE_View`/`TGE_VIEW_*`/`TGE_GRID_SCALE_*` también fueron promovidos
+      (`tge::Playfield` accessors / `tge::ViewUpdate` / `tge::GridScale`). Ver §6.7.
+    - **GAPs surfaced por la traducción fiel de Pac-Man (el wrapper no cubría la
+       API C → se usó C crudo y se registró; resueltos en la segunda pasada, §6.7):**
+       * `tge::TileMap` no exponía `width()`/`height()` → **resuelto**: agregados
+         `TileMap::width()`/`height()`. El clone ahora usa `map.width()`/`map.height()`.
+       * `tge::Actor` no exponía `fg`/`bg` → **resuelto**: agregados `set_fg`/`set_bg`/
+         `fg`/`bg`. El clone ahora usa `actor.set_fg(...)`/`set_bg(...)`.
+       * `tge::Actor::draw` recibía `TGE_GridView*`/`const TGE_View*` crudos →
+         **resuelto**: `Actor::draw(Playfield&)` consume el wrapper (acopla
+         `actor.hpp`→`playfield.hpp`). El clone ahora usa `actor.draw(playfield)`.
+       * `tge::Vec2i` no exponía `dist2` → **resuelto**: agregado `Vec2i::dist2`.
+         El clone ahora usa `next.dist2(target)`.
+       * No existía `tge::Rect` → **resuelto**: nuevo `tge::Rect` con `contains`.
+         El clone ahora usa `GHOST_HOUSE.contains(x, y)`.
+       * `tge_utf8_decode` + `tge_grid_put` (box-art `MAZE_VISUAL`) → **escape hatch
+         C deliberado** (§6.7): se mantiene crudo en el boundary de render; no se envuelve.
+       Criterio consumer-driven respetado: promovidos solo los que un programa C++
+       normal necesitaría, con consumidor real. Ver §6.6 / §6.7.
 - **Ownership de `GridTheme` (hallazgo de la sonda, corregido en C++):** `GridTheme`
   es *owning* (posee 4 `Sprite`s y construye un `TGE_GridTheme` que solo **toma
   prestados** punteros). Una copia/movimiento *member-wise* dejaría `raw.tiles[i].sprite`
   apuntando a los `sprites[]` del objeto origen (colgante tras destruirlo). Corregido
   en el wrapper con `bind()` que reenlaza los punteros al `sprites[]` propio tras
   copy/move. `Sprite` es value type (POD sobre literales estáticos), copia superficial
-  segura. Test: `probe_gridtheme_sprite_ownership`.
+   segura. Test: `probe_gridtheme_sprite_ownership`.
+
+### 6.6 Auditoría de wrappers/GAPs (Snake + Sokoban + Pac-Man) — promociones aplicadas
+
+Tras los tres probes (24 + 27 + 27 tests en verde) se auditó cada GAP con el
+criterio: *"¿un programa C++ normal debería tocar C para hacer esto?"*.
+
+- **Promovidos (evidencia de dos consumidores):** `tge::ViewUpdate` (enum espejo de
+  `TGE_ViewUpdate`), `tge::GridScale` (enum espejo de `TGE_GridScale`),
+  `tge::Playfield::width()/height()/origin_*()` (eliminan `TGE_View`/`TGE_Rect` del
+  gameplay), y `tge::TileSet` (wrapper *owning* sobre `TGE_TileSet`, análogo a
+  `tge::GridTheme`; Sokoban es consumidor real). Snake y Sokoban fueron refactorizados
+  para consumir estos wrappers; los 24 + 27 tests siguen en verde tras el refactor.
+- **Validado en *forma* (Pac-Man):** `tge::Actor`. Estaba validado aislado pero sin
+  consumidor de juego; el clone de Pac-Man lo consume de verdad (4 fantasmas + Pac-Man
+  vía `Actor::draw`). La *forma* es correcta (el wrapper oculta `TGE_Actor` y mueve el
+  `draw` a un método del objeto), y la traducción fiel superfició 3 GAPs que la
+  validación aislada no había revelado. **Resueltos en la segunda pasada (§6.7):** `Actor`
+  ahora expone `set_fg`/`set_bg`/`fg`/`bg`, y `Actor::draw(Playfield&)` consume el
+  wrapper (no punteros C crudos); `Vec2i::dist2` también agregado.
+  * `tge::Actor` no exponía `fg`/`bg` → ahora `set_fg`/`set_bg`/`fg`/`bg` (C++ 1.0).
+  * `tge::Actor::draw(TGE_GridView*, const TGE_View*)` recibía tipos C crudos → ahora
+    `draw(Playfield&)` (C++ 1.0, acopla `actor.hpp`→`playfield.hpp`).
+  * Consecuencia: `tge::Vec2i` no exponía `dist2` → ahora `Vec2i::dist2` (C++ 1.0).
+- **`TileMap::load_ascii` — resuelto como fachada idiomática C++ (§6.7):** no era una
+  simple representación C faltante sino una decisión de diseño de API (Pac-Man repite el
+  **mismo patrón** que Sokoban: legend + marker callback que reescribe roles). Resuelto
+  con un overload de `tge::TileMap::load_ascii` que toma `std::initializer_list<TileLegend>`
+  + un callable lambda, conservando el overload C original (`TGE_TileLegend` + `TGE_TileMarkerFn`
+  + `void*`) para interoperabilidad. No cambia la semántica de `tge_tilemap_load_ascii`.
+  Ver §6.7.
+- **Sin evidencia suficiente aún:** `tge::Scene`, `tge::Game`. Los probes los evitan a
+  propósito (disciplina gameplay-only): usan `TGE_Run` + callbacks y `app.quit()` en
+  lugar de `TGE_PushScene`/`TGE_PopScene`/`tge_game_create`. No se promueven hasta
+  tener un consumidor real que justifique la proyección del lifecycle de escenas/juego.
+
 
 > **Orden de trabajo (comportamiento primero, wrappers después):** compilar →
 > tilemap smoke → view sizing → wall death → growth → self collision → render →
@@ -244,6 +367,193 @@ Hallazgos registrados (clasificación C-vs-C++):
 > pase, en vez de dejar que el clone revele dónde la API C ya tiene buena semántica y
 > dónde realmente falta una proyección. No se agregan wrappers `tge::` hasta que un
 > consumidor real lo justifique (regla consumer-driven, no coverage-driven).
+
+### 6.7 Decisión post-probes (asignación de GAPs a destino)
+
+Esta sección es el puente entre la observación de GAPs (§6.5/§6.6) y el diseño
+concreto de APIs (segunda pasada). Regla que rige toda la Fase 4: **promoción
+consumer-driven, no por anticipación**. Un GAP pasa a `tge::` solo si un programa
+C++ normal necesitaría tocar C para hacerlo, y la evidencia la aporta un consumidor
+real de los probes — no cobertura especulativa.
+
+Categorías congeladas (ninguna implica cambio de implementación en esta sección):
+
+**C++ 1.0 — cerrar con wrapper (5 promociones):**
+- `Vec2i::dist2` — evidencia: Pac-Man `ghost_choose_direction` (targeting por
+  distancia²). Helper puro de vector 2D; sin valor de escape-hatch.
+- `TileMap::width()`/`height()` — evidencia: Pac-Man `step_position`,
+  `cell_in_ghost_house`, loops de `renderer_draw_walls` (4+ usos de `map.raw`).
+  Dimensiones fundamentales de cualquier consumidor de tilemap; leer `.raw` es la
+  fuga que se cierra.
+- `Rect` (`TGE_Rect` + `tge_rect_contains`) — evidencia: Pac-Man `cell_in_ghost_house`.
+  Primitiva geométrica núcleo; `GHOST_HOUSE` pasa a `Rect{10,12,8,3}`.
+- `Actor` `fg`/`bg` (accessors) — evidencia: Pac-Man `pac.actor.raw.fg`,
+  `g.actor.raw.fg`, ojos `copy.raw.fg`. El color es intrínseco al render del actor.
+- `Actor::draw(Playfield&)` (firma rediseñada, **no** envoltura literal) — evidencia:
+  Pac-Man `pac.actor.draw(&playfield.grid_view(), &playfield.view())`. Acopla al
+  wrapper `Playfield` en vez de exponer punteros `TGE_GridView*`/`TGE_View*` crudos.
+
+**Resuelto como fachada idiomática C++ (no como wrapper mecánico):**
+- `TileMap::load_ascii` + `TGE_TileLegend` + `TGE_TileMarkerFn` — evidencia:
+  Sokoban (`SOKO_LEGEND`+`sokoban_marker`) **y** Pac-Man (`PACMAN_LEGEND`+
+  `level_marker`). Dos consumidores con semánticas de marker *distintas*
+  (cajas/player vs spawns/targets) → se decidió la API con esa evidencia. La
+  solución es una **fachada de ergonomía** sobre el contrato C existente
+  (`tge_tilemap_load_ascii`), no un reemplazo: `tge::TileMap::load_ascii` gana un
+  overload que toma `std::initializer_list<tge::TileLegend>` (la leyenda inline) y
+  un callable `void(char glyph, int x, int y)` (lambda que captura el contexto del
+  nivel y decide el rol final de la celda vía `map.set`). Elimina `LevelLoadCtx`,
+  el método estático `level_marker` y el `void*` cast en ambos probes. El overload
+  C original (leyenda C + `TGE_TileMarkerFn` + `void*`) se mantiene para
+  interoperabilidad. No cambia la semántica de `tge_tilemap_load_ascii`.
+
+**Escape hatch C deliberado (no envolver):**
+- `tge_utf8_decode` + `tge_grid_put` — evidencia: Pac-Man `renderer_draw_walls`
+  (box-art `MAZE_VISUAL`). Muy específico de render de paredes; baja reusabilidad.
+  Se documenta como patrón raw en el boundary de render; reconsiderar solo si otro
+  probe lo necesita.
+
+**Fuera de decisión (sin evidencia de consumidor):**
+- `Scene` / `Game` — evidencia negativa: Snake + Pac-Man evitan vía `app.quit()` /
+  callbacks `TGE_Run` (sin `TGE_PushScene`/`tge_game_create`). Cero consumidor
+  positivo; fuera de 1.0.
+
+| GAP                                       | Destino                                | Consumidor que lo justifica     |
+| ----------------------------------------- | -------------------------------------- | ------------------------------- |
+| `Vec2i::dist2`                            | C++ 1.0                                | Pac-Man                         |
+| `TileMap` width/height                    | C++ 1.0                                | Pac-Man                         |
+| `Rect` / `rect_contains`                  | C++ 1.0                                | Pac-Man                         |
+| `Actor` fg/bg                             | C++ 1.0                                | Pac-Man                         |
+| `Actor::draw(Playfield&)`                 | C++ 1.0 (rediseñada)                   | Pac-Man                         |
+| `load_ascii` (fachada C++ sobre C)        | Resuelto (fachada idiomática)          | Sokoban + Pac-Man               |
+| `tge_utf8_decode` + `tge_grid_put`        | Escape hatch C deliberado               | Pac-Man                         |
+| `Scene` / `Game`                          | Fuera de alcance                       | — (evitado en Snake/Pac-Man)    |
+
+**Segunda pasada (hecha):** las 5 promociones 1.0 están implementadas y el probe de
+Pac-Man reconectado a ellas; los 3 suites siguen en verde (Snake 24 / Sokoban 27 /
+Pac-Man 27). Detalle:
+- `Vec2i::dist2` → `bindings/cpp/include/tge/vec2i.hpp` (`int dist2(Vec2i) const`).
+- `TileMap::width()`/`height()` → `bindings/cpp/include/tge/tilemap.hpp`.
+- `tge::Rect` (nuevo) → `bindings/cpp/include/tge/rect.hpp` (`struct Rect` + `contains`).
+- `Actor::set_fg`/`set_bg`/`fg`/`bg` → `bindings/cpp/include/tge/actor.hpp`.
+- `Actor::draw(Playfield&)` → `bindings/cpp/include/tge/actor.hpp` (acopla
+  `actor.hpp`→`playfield.hpp`; consume `pf.raw.grid_view`/`pf.raw.view`).
+
+Empezó por `Rect`/`TileMap`/`Vec2i` (mecánicos) y terminó en `Actor::draw` (la única
+que implica acoplamiento entre wrappers). Las superficies restantes (`load_ascii`
+diferido; `tge_utf8_decode`+`tge_grid_put` escape hatch; `Scene`/`Game` fuera de
+alcance) **no** se tocaron.
+
+### 6.8 Auditoría ergonómica post-freeze
+
+Revisión de **ergonomía**, no de arquitectura, hecha *después* de declarar el freeze
+1.0 en §6.4. No busca nuevos wrappers: usa los tres probes (Snake 24 / Sokoban 27 /
+Pac-Man 27 = 78 tests) como corpus y clasifica cada API de `tge::` que consumen. El
+objetivo es comprobar que **no hay ninguna mala abstracción que obligue a reabrir el
+freeze**, y dejar registrado el veredicto. Criterio por API: ¿expresa naturalmente la
+intención? ¿el C++ resultante es claramente mejor que C? ¿responsabilidad obvia?
+¿cambia semántica o solo ergonomía?
+
+Escala:
+- **A** — idiomática C++.
+- **B** — aceptable, pero algo C-like.
+- **C** — incómoda / filtración de implementación.
+- **D** — directamente una mala abstracción.
+
+Resultado (por superficie usada en los probes):
+
+| Superficie | C equivalente | Clasif. | Nota |
+| --- | --- | --- | --- |
+| `Vec2i` / `Direction` (`+`, `to_vec`, `dist2`, `from_event`) | `tge_vec2i_add` / `tge_direction_vec` / `tge_vec2i_dist2` | **A** | claramente mejor que C |
+| `TileMap` `get/set/count/init/draw` | `tge_tilemap_*` | **A** | — |
+| `TileMap::load_ascii(rows,w,h,{...},lambda)` | `tge_tilemap_load_ascii` + `TGE_TileLegend` + `TGE_TileMarkerFn` + `void*` | **A/B** | enormemente mejor; `w/h` redundante con `rows` (ver B) |
+| `Actor` `set/get position/sprite/fg/bg` + `draw(Playfield&)` | `tge_actor_*` | **A** | convención `set_x`/`x` uniforme |
+| `Playfield` `sync/update_view/width/height/origin_*/attach/draw_border/contains/random_point/valid/put_local` | `tge_playfield_*` / `tge_view_*` | **A** | — |
+| `Playfield::grid_view()` (devuelve `TGE_GridView&`) | — | **B/C** | véase C-1 |
+| `Rect` `contains(x,y)` / `contains(pos)` | `tge_rect_contains` | **A** | mínimo, consistente con `Vec2i` |
+| `Color` `yellow()/DEFAULT()/indexed()/blue()/...` | `tge_color_*` | **A/B** | modelo coherente; `Color::DEFAULT()` repetido 18× (ruido, no defecto) |
+| `Event` `from_event` / `tge::Event(*ev)` | `TGE_Event*` | **A** | sin `e.raw` en la lógica de los probes |
+| `FixedStep`/`InputBuffer`/`Sprite`/`TileSet`/`Canvas`/`GridTheme`/`App` (ctores valor + `push/pop/update/next/draw_modal`) | — | **A** | — |
+| `playfield.init(...)` / `map.init(...)` | `tge_playfield_init` / `tge_tilemap_init` | **B** | justificado por re-init/ownership (dos fases) |
+
+Conteo: **A** → mayoría abrumadora; **B** → `load_ascii` `w/h` redundante,
+`Color::DEFAULT()` repetido, `init()` vs ctor (justificado), `grid_view()` expone tipo
+C; **C** → únicamente `playfield.grid_view().grid` en la integración TileMap↔Playfield;
+**D** → ninguno.
+
+**C-1 (`playfield.grid_view().grid`) — única filtración real, candidato 1.1 / Beta 2 (NO
+implementado ahora).** Aparece 4×: 2 en `map.draw(&playfield.grid_view().grid, ox, oy,
+...)` y 2 en el escape hatch `tge_grid_put(&playfield.grid_view().grid, ...)`. La causa
+ no es `grid_view()` en sí, sino que **no existe una forma de "dibujar este tilemap en
+ este playfield"** sin bajar al `TGE_Grid` crudo: `TileMap::draw` toma `TGE_Grid*`, así
+ que el probe debe hacer `&playfield.grid_view().grid`. Mejora 1.1 (sin romper el
+ contrato): `Playfield::draw_tilemap(const TileMap&, const TileSet&)` que internamente
+ llame `tge_tilemap_draw(&raw.grid_view.grid, ...)`, acoplando `Playfield`→`TileMap`
+ (misma dirección que `Actor::draw(Playfield&)`). El escape hatch seguiría necesitando
+ `grid_view().grid`, así que la filtración no se elimina del todo, solo se reduce al
+ hatch. **Reformulación (ver §6.9, Minesweeper):** el gap de fondo es más general que
+ "dibujar un TileMap" — es *mapeo de coordenadas del Playfield* (Canvas ↔ celda). La
+ API 1.1 debe diseñar esa mini-API de transformación primero y hacer que `draw_tilemap`
+ sea un consumidor de ella, no solo un parche de render.
+
+**Nota 1.1 (no defecto 1.0):** `load_ascii(rows, w, h, ...)` podría derivar `w/h` de
+`rows` (`const char* const*`) en una futura revisión; hoy es explícito y aceptable.
+
+Veredicto: el proceso *consumer-driven* ya eliminó las malas abstracciones de raíz. La
+C++ 1.0 **sigue congelada como contrato de Beta 1**; C-1 es candidato a 1.1 / Beta 2, no a un cambio
+inmediato. No se tocó más el binding C++ tras esta auditoría.
+
+### 6.9 Validación post-freeze: Minesweeper (13_minesweeper.c)
+
+Cuarto juego sobre la superficie 1.0, pero **post-freeze**: no diseña wrappers, los
+*consume* para confirmar que la API congelada resiste una superficie que los tres
+probes anteriores no ejercitaban — **mouse** — sin necesidad de abrirla. Regla
+estricta durante el probe: **no se modifica la 1.0 para acomodar hallazgos**; cualquier
+necesidad genuina se registra como candidato 1.1, igual que `Playfield::draw_tilemap`.
+
+Implementación: `bindings/cpp/examples/minesweeper_game.hpp` (clon 1:1 de
+`13_minesweeper.c` sobre `tge::`), `examples/minesweeper.cpp`, y
+`tests/test_minesweeper.cpp` (**47 tests, 0 failures**, headless vía mock backend).
+
+Superficie nueva ejercitada (y veredicto sobre la Beta 1):
+- `TGE_EVENT_MOUSEDOWN` + `e.raw.data.mouse.{x,y,button}` — **M-1 (gap 1.1):** `tge::Event`
+  expone `EventType::MouseDown/Up/Move` pero **no** accesores de mouse. La única forma de
+  leer cursor/botón hoy es `e.raw.data.mouse.*`. La traducción 1:1 funciona, pero es ruido
+  C en código de juego. Candidato 1.1: `Event::mouse_x()/mouse_y()/mouse_button()` (o un
+  `MouseData`).
+- `TileMap` + `TileSet` como capa de render puro (el estado lógico vive en arreglos del
+  mundo, como en el C) — otra consumidora real de `TileMap`; no reveló gaps.
+- `Playfield::grid_view().grid.ox/oy` en `mouse_to_cell` — **re-confirma C-1**, pero
+  Minesweeper lo **reformula**: ya no es solo "dibujar un TileMap", sino un gap de
+  *mapeo de coordenadas del Playfield* (Canvas ↔ celda, y por extensión dibujar un
+  TileMap). `mouse_to_cell` es una operación genuina de interacción, no box-art
+  exótico como en Pac-Man, así que la evidencia es más fuerte. El probe la absorbe vía
+  el escape hatch ya documentado. `Playfield::view()`/`contains`/`width()`/`height()`/
+  `origin_*()` cubren el resto de la conversión sin tocar crudo, pero la capa de
+  transformación de coordenadas sigue filtrando `grid_view().grid`.
+- RNG: el C usa su propio xorshift32 determinista (no la RNG de TGE), así que no hay gap de
+  RNG que revelar; queda como decisión de juego, no de API.
+
+Resultado de la validación: la 1.0 **sí** da abasto con mouse + TileMap + interacción
+directa. El único defecto de ergonomía es M-1 (falta de accesores de mouse en `Event`),
+que **no** obliga a reabrir el freeze — es un candidato 1.1 limpio. No se tocó el binding.
+
+Candidatos 1.1 confirmados tras la validación (no implementados; la C++ 1.0 queda cerrada dentro de Beta 1):
+- **`Event::mouse_x() / mouse_y() / mouse_button()`** (M-1). La API de Beta 1 distingue el tipo
+  de evento mouse pero no expone cursor/botón; hoy solo vía `e.raw.data.mouse.*`.
+- **API de mapeo de coordenadas de `Playfield`** (C-1, reformulado). Subsume el candidato
+  `Playfield::draw_tilemap(...)` de §6.8: el problema de fondo es que varias operaciones
+  normales de interacción terminan conociendo detalles internos de `GridView`/`Grid`
+  (`view().area.*` y `grid_view().grid.ox/oy`). Para 1.1 conviene diseñar primero una
+  pequeña API de transformación y que `draw_tilemap` sea un consumidor de ella, p.ej.
+  conceptualmente `Vec2i Playfield::cell_at(int canvas_x, int canvas_y) const;` y
+  `bool Playfield::contains_canvas_point(int x, int y) const;` (las firmas finales se
+  deciden al implementar 1.1, no ahora). La rareza de mezclar `area.*` y `grid.ox/oy` en
+  una sola función es justamente lo que vuelve frágil el código ante cambios de layout y
+  refuerza este candidato.
+
+El probe **no se modifica**: sus 47 tests verdes documentan exactamente el estado actual de
+la API (incluido el escape hatch), que es el valor que queríamos preservar.
 
 ---
 
@@ -272,9 +582,14 @@ Estado granular (conservado del histórico; los ítems de construcción ya está
 - [x] Revisiones 2–6: API de espacio local, `tge_printf`, `tge_scene_create/destroy`, adapter `tge-extra/game`, migración de 01/05/06.
 - [x] Todos los headers públicos autocontenidos (ver auditoría 4.1).
 - [x] `docs/API_STABILITY.md` publicado.
-- [ ] **Abierto:** migrar `07_breakout` y `03_tetris` al adapter de juego (Revisión 5, Fase 2 de validación) — si obliga a tocar la API, ajustar antes.
-- [ ] **Fase 4 (cierre 1.0):** pasada final de `const`/nombres/ownership/lifecycle/retornos/docs en headers públicos; confirmar símbolos realmente públicos; declarar freeze 1.0 (§6.4).
-- [ ] **Candidato freeze (loop manual):** ¿debe TGE exponer un loop manual de primera clase (setter de draw/update/event callback + `TGE_IsRunning`, con `TGE_Step` presentando el canvas del llamador), o basta `TGE_Run` como único loop público? La sonda lo halló al usar `TGE_Step`+draw (pantalla negra); corregido con `TGE_Run`. No se implementa hasta tener un segundo consumidor que lo justifique. Ver §6.5 / PLAN_ENTRENAMIENTO.md (hallazgos de la sonda).
+- [x] **Migración a Game adapter (Revisión 5 / F4):** `07_breakout` ya usaba `tge_game_create` (Revisión 5); `03_tetris` migrado en F4 (ahora `TetrisGame` embebe `TGE_GameContext` en offset 0, callbacks vía `tge_game_instance`, `title_event` usa `tge_game_create`). `tests/test_tetris.c` añadido como fixture de regresión headless (crea la escena vía adapter y verifica que una flecha izquierda mueve la pieza). Todos los `examples/games/*` compilan; 34 suites de tests, 0 fallos.
+- [x] **Fase 4 (consolidación / API freeze para Beta 1):** superficie C++ validada por tres consumidores reales (Snake/Sokoban/Pac-Man, 78 tests); declarado freeze de la proyección C++ para Beta 1 en §6.4 (regla consumer-driven, sin wrappers sin consumidor durante la beta). Ver §6.4 / §6.5 / §6.6 / §6.7.
+- [x] **Validación post-freeze (Minesweeper, 13):** cuarto consumidor sobre la Beta 1 congelada; confirma que mouse + TileMap + interacción directa dan abasto sin abrir la API. Hallazgo M-1 (`Event` sin accesores de mouse) registrado como candidato 1.1; no se modificó la C++ 1.0. 47 tests (total 125/0). Ver §6.9.
+- [ ] **Loop manual (decidido diferir — fuera de Beta 1):** ¿`TGE_Step` + `TGE_IsRunning` como API de primera clase (setter de draw/update/event callback con `TGE_Step` presentando el canvas del llamador), o basta `TGE_Run` como único loop público? La sonda lo halló al usar `TGE_Step`+draw (pantalla negra) y se corrigió con `TGE_Run`. **Decisión F4:** se difiere — solo hubo un consumidor (la sonda) y la regla es *consumer-driven*, no *coverage-driven*; `TGE_Run` queda como único loop público de Beta 1. Se reabre solo si aparece un segundo consumidor real. Ver §6.5 / PLAN_ENTRENAMIENTO.md (hallazgos de la sonda).
+- [ ] **F5 — Release Beta 1 (siguiente):** pasada final sobre `API_STABILITY.md`, `README`, `IMPLEMENTATION_PLAN.md`, `ADR.md`, `Makefile`/CI; correr todos los tests + compilar todos los ejemplos; etiquetar la versión (Beta 1). `bindings/cpp` queda como laboratorio de ergonomía congelado en C++ 1.0 (4 probes / 125 tests); los candidatos 1.1 (`Event` mouse accessors, Playfield coordinate mapping) no entran en Beta 1 (quedan para Beta 2 / RC).
+- [ ] **F6 — Feedback / estabilización (Beta 2):** uso real (otros lenguajes/proyectos consumiendo la API C + proyección C++), issues de consumidores, posibles extensiones 1.1 (`Event` mouse accessors, Playfield coordinate mapping, `draw_tilemap`, loop manual, `TGE_CreateConfig`, `TGE_SurfaceObserver`) según evidencia real. No se promete compatibilidad final todavía.
+- [ ] **F7 — Release Candidate:** congelación definitiva de compatibilidad (ABI/API) tras estabilizar las extensiones de Beta 2.
+- [ ] **F8 — v1.0 final:** release con contrato de compatibilidad estable.
 
 ---
 
@@ -359,8 +674,8 @@ Regla de triaje para cualquier fricción descubierta por una proyección:
 > Si afecta la semántica o el contrato de TGE → corregir en C.
 > Si es cómo expresar esa semántica idiomáticamente → resolverlo en la proyección.
 
-Por eso conviene hacer la sonda `tge::` *antes* del freeze 1.0 (§6.4/§6.5): una
-firma C incómoda aún se puede corregir; tras 1.0 ya sería parte del contrato ABI.
+Por eso conviene hacer la sonda `tge::` *antes* del freeze de Beta 1 (§6.4/§6.5): una
+firma C incómoda aún se puede corregir; tras Beta 1 ya sería parte del contrato ABI.
 
 ---
 

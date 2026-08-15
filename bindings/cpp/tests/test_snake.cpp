@@ -64,11 +64,11 @@ TGE_TEST(clone_view_sized_to_full_grid_no_double_conversion) {
     Game g(wrapped);
     advance_time(m, 0.1);
     TGE_Step(app);
-    TGE_ASSERT(g.playfield.view().area.w == 18,
-               "playfield width is full grid (no double conversion)");
+    TGE_ASSERT(g.playfield.width() == 18,
+                "playfield width is full grid (no double conversion)");
     // 2x1 -> grid 20x15 (origin reserves the HUD row) -> interior 18x13.
-    TGE_ASSERT(g.playfield.view().area.h == 13,
-               "playfield height is full grid");
+    TGE_ASSERT(g.playfield.height() == 13,
+                "playfield height is full grid");
     TGE_ASSERT(g.playfield.valid(), "playfield valid at this size");
     TGE_Destroy(app);
 }
@@ -79,10 +79,9 @@ TGE_TEST(clone_snake_dies_cleanly_into_wall) {
     tge::App wrapped(app);
     Game g(wrapped);
     size_playfield(g);
-    const TGE_View &v = g.playfield.view();
 
     g.direction = Direction::Right;
-    g.body = { Vec2i(v.area.w - 1, v.area.h / 2) }; // head at right edge
+    g.body = { Vec2i(g.playfield.width() - 1, g.playfield.height() / 2) }; // head at right edge
     g.update(0.11f);                                // one step -> head leaves the field
     TGE_ASSERT(g.state == Game::Over, "state becomes Over on wall hit");
     // head never left the field (world_step returns false without moving)
@@ -115,9 +114,8 @@ TGE_TEST(clone_self_collision_kills) {
     tge::App wrapped(app);
     Game g(wrapped);
     size_playfield(g);
-    const TGE_View &v = g.playfield.view();
 
-    int cx = v.area.w / 2, cy = v.area.h / 2;
+    int cx = g.playfield.width() / 2, cy = g.playfield.height() / 2;
     // 5-long snake shaped so moving Up drops the head onto body[3].
     g.body = { Vec2i(cx, cy), Vec2i(cx + 1, cy), Vec2i(cx + 1, cy - 1),
                Vec2i(cx, cy - 1), Vec2i(cx - 1, cy - 1) };
@@ -125,6 +123,24 @@ TGE_TEST(clone_self_collision_kills) {
     g.input.push(Direction::Up); // (cx,cy) -> (cx, cy-1) == body[3]
     g.update(0.11f);
     TGE_ASSERT(g.state == Game::Over, "self-collision ends the game");
+    TGE_Destroy(app);
+}
+
+TGE_TEST(clone_spawn_food_fails_when_board_full) {
+    MockData *m;
+    TGE_App *app = make_app(&m);
+    tge::App wrapped(app);
+    Game g(wrapped);
+    size_playfield(g);
+    // Fill every interior cell so no free spot remains. Use resize() so the test
+    // exercises spawn_food's early-out (area - body_length <= 0), not body growth.
+    int area = g.playfield.width() * g.playfield.height();
+    g.body.resize((size_t)area);
+    int i = 0;
+    for (int y = 0; y < g.playfield.height(); y++)
+        for (int x = 0; x < g.playfield.width(); x++)
+            g.body[i++] = Vec2i(x, y);
+    TGE_ASSERT(!g.spawn_food(), "spawn_food returns false when board is full");
     TGE_Destroy(app);
 }
 
@@ -148,7 +164,8 @@ TGE_TEST(clone_renders_head_body_and_walls) {
 TGE_TEST(tilemap_smoke) {
     // Keeps TileMap in the probe coverage (the 06 clone itself has no tilemap;
     // 06 uses the grid border + cell draws). Exercises tge::TileMap + a raw
-    // TGE_TileSet palette (TileSet wrapper deferred: no consumer yet).
+    // TGE_TileSet palette; the owning tge::TileSet wrapper is now the
+    // promoted form (consumer: Sokoban), tested there.
     tge::TileMap map;
     map.init(5, 5);
     TGE_TileSet palette{};
@@ -204,6 +221,7 @@ int main() {
     test_clone_snake_dies_cleanly_into_wall();
     test_clone_grows_after_eating_food();
     test_clone_self_collision_kills();
+    test_clone_spawn_food_fails_when_board_full();
     test_clone_renders_head_body_and_walls();
     test_tilemap_smoke();
     test_probe_gridtheme_sprite_ownership();

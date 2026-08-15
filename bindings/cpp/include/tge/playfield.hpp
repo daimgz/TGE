@@ -55,15 +55,32 @@ private:
     }
 };
 
+/* Classification of what a recomputed layout means (mirror of TGE_ViewUpdate).
+ * Returned by Playfield::update_view so game logic never names TGE_VIEW_*. */
+enum class ViewUpdate : int {
+    Invalid = TGE_VIEW_INVALID,
+    Resized = TGE_VIEW_RESIZED,
+    FirstValid = TGE_VIEW_FIRST_VALID,
+};
+
+/* Physical cell size of a grid view (mirror of TGE_GridScale). Accepted by
+ * Playfield::init so game logic never names TGE_GRID_SCALE_*. */
+enum class GridScale : int {
+    Scale1X1 = TGE_GRID_SCALE_1X1,
+    Scale2X1 = TGE_GRID_SCALE_2X1,
+};
+
 /* The playfield composition (view + grid view + layout). Wraps TGE_Playfield
  * and exposes the embedded view/grid view and the local-space operations the
  * game needs (contains, random_point, clamp, translate), so drawing/culling/
- * collision do not leak raw tge_view_* / tge_grid_view_* calls into game logic. */
+ * collision do not leak raw tge_view_* / tge_grid_view_* calls into game logic.
+ * width()/height()/origin_*() hide TGE_View/TGE_Rect from game logic. */
 struct Playfield {
     TGE_Playfield raw;
 
-    void init(const GridTheme &theme, TGE_GridScale scale, int min_w, int min_h) {
-        tge_playfield_init(&raw, theme, scale, min_w, min_h);
+    void init(const GridTheme &theme, GridScale scale, int min_w, int min_h) {
+        tge_playfield_init(&raw, theme, static_cast<TGE_GridScale>(scale), min_w,
+                           min_h);
     }
 
     void attach(Canvas canvas) { tge_playfield_attach(&raw, canvas.raw); }
@@ -82,7 +99,13 @@ struct Playfield {
     const TGE_View &view() const { return raw.view; }
 
     bool valid() const { return raw.view.valid; }
-    TGE_ViewUpdate update_view(int w, int h) { return tge_view_update(&raw.view, w, h); }
+    ViewUpdate update_view(int w, int h) {
+        return static_cast<ViewUpdate>(tge_view_update(&raw.view, w, h));
+    }
+    int width() const { return raw.view.area.w; }
+    int height() const { return raw.view.area.h; }
+    int origin_x() const { return raw.view.area.x; }
+    int origin_y() const { return raw.view.area.y; }
     bool contains(Vec2i p) const { return tge_view_contains(&raw.view, p); }
     Vec2i random_point() const { return Vec2i(tge_view_random_point(&raw.view)); }
     Vec2i translate(Vec2i local) const {

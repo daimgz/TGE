@@ -27,6 +27,7 @@
 #include "tge-extra/timer.h"
 #include "tge-extra/vec2i.h"
 #include "tge-extra/view.h"
+#include "tge-extra/game.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -91,9 +92,11 @@ typedef struct {
     TGE_Grid preview; /* origin (24, 2), NEXT box */
 } TetrisRenderer;
 
-/* The game as a whole: the world (rules) + the renderer (screen), wired
- * together by the scene callbacks. */
+/* The game as a whole: the scene glue (TGE_GameContext) + world + renderer,
+ * wired together by the game adapter callbacks. ctx MUST be the first member
+ * (offset 0): scene->userdata == &game->ctx. */
 typedef struct {
+    TGE_GameContext ctx; /* first member: scene->userdata == &game->ctx */
     Tetris world;
     TetrisRenderer renderer;
 } TetrisGame;
@@ -113,9 +116,9 @@ static TGE_App *g_app = NULL;
 static void init_app(TGE_App *app);
 static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas);
 static void title_event(TGE_Scene *scene, TGE_Event *ev);
-static void game_update(TGE_Scene *scene, float dt);
-static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas);
-static void game_event(TGE_Scene *scene, TGE_Event *ev);
+static void game_update(TGE_GameContext *ctx, float dt);
+static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas);
+static void game_event(TGE_GameContext *ctx, TGE_Event *ev);
 static void renderer_init(TetrisRenderer *r);
 static void renderer_attach(TetrisRenderer *r, TGE_Canvas *canvas);
 static void renderer_draw_board(TetrisRenderer *r, const Tetris *t);
@@ -182,6 +185,14 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
                            TGE_COLOR_DEFAULT);
 }
 
+/* The game's interface, handed to tge_game_create(). */
+static const TGE_GameCallbacks tetris_callbacks = {
+    game_update,
+    game_draw,
+    game_event,
+    NULL,
+};
+
 static void title_event(TGE_Scene *scene, TGE_Event *ev)
 {
     (void)scene;
@@ -206,26 +217,25 @@ static void title_event(TGE_Scene *scene, TGE_Event *ev)
         return;
     }
     if (enter) {
-        TGE_Scene *game = NULL;
-        TetrisGame *g = (TetrisGame *)tge_scene_create(
-            &game, sizeof(TetrisGame), game_update, game_draw, game_event,
-            NULL);
+        /* tge_game_create wires the trampolines and pushes the game scene in one
+         * call; g points at the instance (ctx at offset 0). */
+        TetrisGame *g = (TetrisGame *)tge_game_create(
+            g_app, sizeof(TetrisGame), &tetris_callbacks);
         tetris_game_init(g);
-        TGE_PushScene(g_app, game);
     }
 }
 
-static void game_update(TGE_Scene *scene, float dt)
+static void game_update(TGE_GameContext *ctx, float dt)
 {
-    TetrisGame *g = (TetrisGame *)scene->userdata;
+    TetrisGame *g = (TetrisGame *)tge_game_instance(ctx);
     if (g->world.paused)
         return;
     tge_timer_update(&g->world.rot, dt);
 }
 
-static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
+static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas)
 {
-    TetrisGame *g = (TetrisGame *)scene->userdata;
+    TetrisGame *g = (TetrisGame *)tge_game_instance(ctx);
     Tetris *t = &g->world;
     int w = tge_canvas_width(canvas);
     int h = tge_canvas_height(canvas);
@@ -288,9 +298,9 @@ static void game_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     }
 }
 
-static void game_event(TGE_Scene *scene, TGE_Event *ev)
+static void game_event(TGE_GameContext *ctx, TGE_Event *ev)
 {
-    TetrisGame *g = (TetrisGame *)scene->userdata;
+    TetrisGame *g = (TetrisGame *)tge_game_instance(ctx);
     Tetris *t = &g->world;
 
     if (ev->type == TGE_EVENT_RESIZE) {
