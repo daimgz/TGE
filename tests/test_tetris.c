@@ -63,7 +63,7 @@ TGE_TEST(input_moves_piece) {
     TGE_Destroy(app);
 }
 
-int main() {
+int main(void) {
     test_adapter_wiring();
     test_input_moves_piece();
     return tge_test_report();

@@ -118,6 +118,7 @@ static void update_quit_after_3(TGE_App *app, float dt)
 
 static void draw_counter(TGE_App *app, TGE_Canvas *canvas)
 {
+    (void)app;
     (void)canvas;
     g_draws++;
 }

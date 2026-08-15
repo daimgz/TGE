@@ -432,7 +432,7 @@ static void reveal(MineWorld *world, int sx, int sy)
      * enqueued at most once, so a queue of w*h plus a `queued` guard is
      * enough even when many neighbours re-discover the same cell. */
     int queue[MS_W * MS_H];
-    bool queued[MS_H][MS_W];
+    bool queued[MS_H][MS_W] = {0};
     int qh = 0, qt = 0;
     queue[qt++] = sy * world->w + sx;
     queued[sy][sx] = true;
