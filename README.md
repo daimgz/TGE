@@ -1,60 +1,40 @@
 # TGE — Terminal Game Engine
 
-TGE is a terminal game engine in C: a runtime, a canvas renderer and a
-scene system that games live on top of. It is not a library for drawing text
-to a terminal — it is an engine where the games are the point, and the
-terminal is just the renderer.
+TGE es un motor de juegos para terminal escrita en C: un *runtime* ANSI, un
+*renderer* con render diferencial y un sistema de escenas sobre el cual vivien
+los juegos. No es una librería para dibujar texto en una terminal — es un motor
+donde los juegos son el punto, y la terminal es solo el *renderer*.
 
-## Layout
+El núcleo (`libtge.a`) expone una API C pequeña y estable. Los módulos opcionales
+(`tge-extra`, `libtge-extra.a`) añaden utilidades de grilla, *sprites*, física
+ligera y un *adapter* de ciclo de vida, cada uno independiente y usando solo la
+API pública. No impone ECS, cámara, *fixed-step* ni un framework de UI: el juego
+decide.
 
-```
-src/            the engine: runtime, canvas, renderer, scenes, scheduler
-include/tge/    the public API (libtge.a)
-tge-extra/      optional extension modules (libtge-extra.a)
-examples/min/   minimal API examples (draw text, input, timer, grid)
-examples/games/ 13 playable games (snake, pong, tetris, space invaders, ...)
-tests/          unit tests + sanity checks
-docs/           ADR, API stability policy
-```
+## Features
 
-## Build
+- **Runtime ANSI**: backend de terminal con *raw mode*, colores, resize y parser de input.
+- **Render diferencial**: solo se emiten las celdas que cambiaron.
+- **Unicode / UTF-8**: ancho real de caracteres (los *wide chars* cuentan doble).
+- **Playfield / Grid / TileMap**: capas para juegos de celda lógica (snake, sokoban, roguelikes).
+- **Sistema de input/eventos**: teclado, ratón, resize, timers y eventos de usuario.
+- **Escenas y adapter de juego**: stack de escenas, o `TGE_GameContext` para juegos con estado.
+- **Sin malloc en el render path** (ver `docs/ARCHITECTURE.md`).
 
-```sh
-make            # builds libtge.a and libtge-extra.a
-make test       # runs the test suites
-make games      # builds all games
-make examples   # builds all min examples
-```
-
-Requires a C99 compiler (`gcc` by default) and a POSIX terminal.
-
-## Run a game
+## Quick Start
 
 ```sh
-make games
+git clone https://github.com/daimgz/TGE.git
+cd TGE
+make            # construye libtge.a y libtge-extra.a
+make test       # corre las suites de prueba
+make games      # construye los juegos
 ./examples/games/01_snake
 ```
 
-Games: `01_snake`, `02_pong`, `03_tetris`, `04_space_invaders`, `05_swarm`,
-`06_snake_grid`, `07_breakout`, `08_dino`, `09_dungeon`, `10_map_editor`,
-`11_pacman`, `12_sokoban`, `13_minesweeper`. `06_snake_grid` is the reference
-example of the game architecture (world / renderer split over `TGE_Game`);
-`01_snake` is its minimal counterpart, written directly on the scene API.
+Requiere un compilador C99 (`gcc` por defecto) y una terminal POSIX.
 
-## Status
-
-**Beta 1** — the public C API (`include/tge/*.h`) is frozen for the beta
-(see `docs/API_STABILITY.md`). Optional `tge-extra` modules remain experimental.
-The C++ projection in `bindings/cpp/` is an ergonomics lab frozen at "C++ 1.0"
-within Beta 1, not part of the stable API contract.
-
-## C++ ergonomics lab
-
-`bindings/cpp/` is an experimental, intentionally-incomplete C++ wrapper (`tge::`)
-over the stable C API, used to drive ergonomic decisions. It is **not** a
-supported binding and is excluded from the API stability policy.
-
-## Minimal program
+## Minimal example
 
 ```c
 #include "tge/tge.h"
@@ -62,7 +42,7 @@ supported binding and is excluded from the API stability policy.
 static void draw(TGE_App *app, TGE_Canvas *canvas)
 {
     (void)app;
-    tge_draw_text(canvas, 0, 0, "Hello", TGE_COLOR_WHITE, TGE_COLOR_BLACK);
+    tge_draw_text(canvas, 0, 0, "Hello, TGE", TGE_COLOR_WHITE, TGE_COLOR_BLACK);
 }
 
 int main(void)
@@ -76,6 +56,76 @@ int main(void)
 }
 ```
 
+## Architecture
+
+Una sola dirección: `libtge` (core) → `tge-extra` (módulos) → `examples`
+(juegos). Ningún módulo incluye internos del core; los ejemplos solo usan
+headers públicos. Ver `docs/ARCHITECTURE.md`.
+
+## Modules
+
+`tge-extra` agrupa módulos opcionales (grilla, *sprites*, *view*, *playfield*,
+*fixedstep*, etc.). La lista completa con propósito y estado está en
+`docs/MODULES.md`.
+
+## Examples / Games
+
+`01_snake`, `02_pong`, `03_tetris`, `04_space_invaders`, `05_swarm`,
+`06_snake_grid`, `07_breakout`, `08_dino`, `09_dungeon`, `10_map_editor`,
+`11_pacman`, `12_sokoban`, `13_minesweeper`. `06_snake_grid` es el ejemplo de
+referencia de la arquitectura (split *world* / *renderer* sobre `TGE_GameContext`);
+`01_snake` es su contraparte mínima, escrita directo sobre la API de escenas.
+
+## Beta 1 status
+
+**Beta 1** congela la API pública C (`include/tge/*.h`): durante la beta solo se
+permiten cambios *additive* y justificados por un consumidor real; la
+compatibilidad ABI/API definitiva se garantiza en RC/1.0. `tge-extra` sigue
+**experimental** (puede romper entre *minor versions*). La proyección C++
+(`bindings/cpp/`) es un laboratorio de ergonomía **excluido** de la política de
+estabilidad. Ver `docs/API_STABILITY.md`.
+
+## Run a game
+
+```sh
+make games
+./examples/games/01_snake
+```
+
+Un frame típico de Snake se ve así:
+
+```text
++------------------------------------------+
+|                                          |
+|    ####                                  |
+|      #        .                           |
+|      #                                    |
+|      #######                             |
+|            #                             |
+|            #                             |
+|                                          |
++------------------------------------------+
+```
+
+(El comando exacto y el frame real dependen de tu terminal; lo de arriba es
+representativo.)
+
+## Documentation
+
+- `README.md` — qué es TGE y cómo empezar.
+- `GETTING_STARTED.md` — aprender haciendo, con ejemplos progresivos.
+- `docs/MODULES.md` — qué existe en `tge-extra`.
+- `docs/ARCHITECTURE.md` — cómo está diseñado (capas, modelo de memoria, bindings).
+- `docs/API_STABILITY.md` — qué significa "estable" en TGE.
+- `CHANGELOG.md` — qué cambió en Beta 1.
+- `IMPLEMENTATION_PLAN.md` — historia y decisiones internas del proyecto.
+- `ADR.md` — decisiones arquitectónicas (Architecture Decision Records).
+
+## Roadmap
+
+`Beta 1` (API congelada) → `Beta 2` (feedback / estabilización, extensiones 1.1
+según consumidores reales) → `RC` (compatibilidad definitiva) → `1.0`.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — ver [LICENSE](LICENSE).
