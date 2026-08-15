@@ -624,8 +624,12 @@ impredecible.
 **Decisión:** API pública = `include/tge/*.h`. Internals pueden cambiar entre
 versiones menores. ABI no garantizada hasta 1.0.
 
-**Racional:** El proyecto va a cambiar mucho antes de 1.0. Mantener libertad
-para refactorizar es crucial.
+**Estado (Beta 1):** la API pública C está **congelada para la beta** (solo
+cambios *additive* y *consumer-driven*; ver `docs/API_STABILITY.md`). La
+compatibilidad ABI/API definitiva se garantiza en RC/1.0.
+
+**Racional:** El proyecto cambió mucho antes de Beta 1; en Beta 1 se congela
+para evitar churn, reservando los breaking changes para RC/1.0.
 
 **Consecuencias:**
 - `include/tge/*.h` = semver estricto.
@@ -1082,7 +1086,7 @@ de la terminal".
 - Los ejemplos/juegos mantienen sus colores explícitos donde el negro (u
   otro bg) es parte de la intención visual; migrarlos a default es una
   decisión de cada renderer, no de esta pasada.
-- Aditivo en API pública pre-1.0 (ver `docs/API_STABILITY.md`).
+- Aditivo en API pública durante Beta 1 (ver `docs/API_STABILITY.md`).
 
 *Fin del ADR. Decisiones vinculantes hasta que un nuevo ADR las modifique.
 Ninguna decisión es inmutable, pero cambiar un ADR requiere justificación

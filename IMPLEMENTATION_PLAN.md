@@ -1,6 +1,6 @@
 # Implementation Plan — TGE Beta 1 (freeze de API) + roadmap a v1.0 final
 
-**Estado:** Fase 4 cerrada (auditoría de API + freeze C++ 1.0 para Beta 1 + validación post-freeze Minesweeper + migración de ejemplos al Game adapter + loop manual diferido). Fase 5 = Release Beta 1 (siguiente, pendiente de tag/versión).
+**Estado:** Fase 4 cerrada (auditoría de API + freeze C++ 1.0 para Beta 1 + validación post-freeze Minesweeper + migración de ejemplos al Game adapter + loop manual diferido). **Fase 5 = Release Beta 1 (hecho: tag `v1.0.0-beta.1`).** Fase 6 (Beta 2 / feedback) es la siguiente.
 **Base:** `ADR.md` (26 decisiones arquitectónicas), `PLAN_ENTRENAMIENTO.md` (roadmap por juegos).
 **Objetivo:** Este documento **ya no es un plan de construcción desde cero**. TGE tiene hoy un núcleo validado, varios juegos consumidores y un `tge-extra` bastante desarrollado. El objetivo ahora es (a) documentar qué está validado, (b) cerrar una **API congelada para Beta 1** (la proyección C++ queda como 1.0 dentro de la beta), y (c) señalar el roadmap a v1.0 final. La regla rectora sigue siendo la de Fase 3b: *el módulo se implementa cuando un juego lo pide, no antes*.
 
@@ -139,8 +139,8 @@ Esto es lo opuesto a "voy a necesitar A* algún día → implementemos A* ahora"
 | F3 | Core gameplay validation (Pong, Tetris, Invaders) | ✅ DONE |
 | F3b | tge-extra validation (Snake, Breakout, Pac-Man, Sokoban, Minesweeper) | ✅ DONE (cerrada en #10) |
 | **F4** | **Consolidación / API freeze para Beta 1** | **✅ DONE** |
-| **F5** | **Release Beta 1** | **← SIGUIENTE** |
-| F6 | Feedback / estabilización (Beta 2) | futuro |
+| **F5** | **Release Beta 1** | **✅ DONE** |
+| F6 | Feedback / estabilización (Beta 2) | **← SIGUIENTE** |
 | F7 | Release Candidate | futuro |
 | F8 | v1.0 final | futuro |
 | Post-v1.0 | FOV, Pathfinding, Noise, AI, Camera, Palette/Theme, Python bindings | por diseñar |
@@ -156,7 +156,25 @@ Cuatro objetivos. Los tres primeros ya tienen una auditoría read-only ejecutada
 ### 6.1 API pública — **auditado (parcialmente)**
 
 - **Headers autocontenidos — ✅ CUMPLE.** Los 9 headers de `include/tge/` y los 19 de `tge-extra/` compilan de forma aislada (`-fsyntax-only`, `-Iinclude -I.`), sin incluir nada privado. (Ya marcado en el checklist de pre-1.0.)
-- **Restantes chequeos de Fase 4 (pendientes de una pasada final antes del freeze):** `const`-correctness, nombres consistentes, ownership/lifecycle documentado, valores de retorno (códigos de error vs `void`), documentación mínima en headers, y confirmar que los símbolos realmente públicos no dependen de `static` internos. Parcialmente cubierto hoy por `docs/API_STABILITY.md` y los comentarios en headers. Se listan en el checklist de pre-1.0 como pendientes.
+- **Restantes chequeos cerrados en el gate de F5 (Beta 1):**
+  - `const`-correctness: los getters de sólo-lectura ahora toman `const TGE_* *`
+    (p.ej. `tge_runtime_width/height/ticks/now` en `src/runtime.c` + `tge_runtime.h`).
+    Verificado con `-Wall -Wextra -pedantic`.
+  - Nombres consistentes: todas las funciones públicas usan el prefijo `tge_`
+    / `TGE_` (verificado por grep sobre `include/tge/*.h` y `tge-extra/*.h`).
+  - Ownership/lifecycle: documentado en cada par `_init`/`_create` ↔ `_destroy`
+    /`TGE_Destroy`; POD inicializados por `_init` no requieren free, los
+    devueltos por `_create`/`TGE_Create` requieren destroy. Codificado en
+    `docs/API_STABILITY.md` (sección Beta 1 + ownership).
+  - Política de retornos: `void` para operaciones imperativas; `bool`/`int`
+    (0 = ok) para operaciones fallibles (p.ej. `tge_tilemap_load_ascii`); los
+    getters devuelven por valor. Documentado en `docs/API_STABILITY.md`.
+  - Documentación mínima: todos los headers públicos llevan un comentario por
+    función/tipo; verificado por inspección.
+  - Símbolos públicos sin dependencias de `static` internos: verificado — no hay
+    globals `static` compartidos en `src/*.c` / `tge-extra/*.c`, y ninguna
+    función declarada en header está definida como `static` (p.ej.
+    `tge_scene_block_destroy` es interna y no figura en ningún header).
 
 ### 6.2 Dependencias — **auditado ✅ CUMPLE**
 
@@ -586,7 +604,7 @@ Estado granular (conservado del histórico; los ítems de construcción ya está
 - [x] **Fase 4 (consolidación / API freeze para Beta 1):** superficie C++ validada por tres consumidores reales (Snake/Sokoban/Pac-Man, 78 tests); declarado freeze de la proyección C++ para Beta 1 en §6.4 (regla consumer-driven, sin wrappers sin consumidor durante la beta). Ver §6.4 / §6.5 / §6.6 / §6.7.
 - [x] **Validación post-freeze (Minesweeper, 13):** cuarto consumidor sobre la Beta 1 congelada; confirma que mouse + TileMap + interacción directa dan abasto sin abrir la API. Hallazgo M-1 (`Event` sin accesores de mouse) registrado como candidato 1.1; no se modificó la C++ 1.0. 47 tests (total 125/0). Ver §6.9.
 - [ ] **Loop manual (decidido diferir — fuera de Beta 1):** ¿`TGE_Step` + `TGE_IsRunning` como API de primera clase (setter de draw/update/event callback con `TGE_Step` presentando el canvas del llamador), o basta `TGE_Run` como único loop público? La sonda lo halló al usar `TGE_Step`+draw (pantalla negra) y se corrigió con `TGE_Run`. **Decisión F4:** se difiere — solo hubo un consumidor (la sonda) y la regla es *consumer-driven*, no *coverage-driven*; `TGE_Run` queda como único loop público de Beta 1. Se reabre solo si aparece un segundo consumidor real. Ver §6.5 / PLAN_ENTRENAMIENTO.md (hallazgos de la sonda).
-- [ ] **F5 — Release Beta 1 (siguiente):** pasada final sobre `API_STABILITY.md`, `README`, `IMPLEMENTATION_PLAN.md`, `ADR.md`, `Makefile`/CI; correr todos los tests + compilar todos los ejemplos; etiquetar la versión (Beta 1). `bindings/cpp` queda como laboratorio de ergonomía congelado en C++ 1.0 (4 probes / 125 tests); los candidatos 1.1 (`Event` mouse accessors, Playfield coordinate mapping) no entran en Beta 1 (quedan para Beta 2 / RC).
+- [x] **F5 — Release Beta 1 (hecho: tag `v1.0.0-beta.1`):** pasada final sobre `API_STABILITY.md`, `README`, `IMPLEMENTATION_PLAN.md`, `ADR.md`, `Makefile`/CI; correr todos los tests + compilar todos los ejemplos; etiquetar la versión (Beta 1). `bindings/cpp` queda como laboratorio de ergonomía congelado en C++ 1.0 (4 probes / 125 tests); los candidatos 1.1 (`Event` mouse accessors, Playfield coordinate mapping) no entran en Beta 1 (quedan para Beta 2 / RC).
 - [ ] **F6 — Feedback / estabilización (Beta 2):** uso real (otros lenguajes/proyectos consumiendo la API C + proyección C++), issues de consumidores, posibles extensiones 1.1 (`Event` mouse accessors, Playfield coordinate mapping, `draw_tilemap`, loop manual, `TGE_CreateConfig`, `TGE_SurfaceObserver`) según evidencia real. No se promete compatibilidad final todavía.
 - [ ] **F7 — Release Candidate:** congelación definitiva de compatibilidad (ABI/API) tras estabilizar las extensiones de Beta 2.
 - [ ] **F8 — v1.0 final:** release con contrato de compatibilidad estable.

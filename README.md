@@ -12,7 +12,7 @@ src/            the engine: runtime, canvas, renderer, scenes, scheduler
 include/tge/    the public API (libtge.a)
 tge-extra/      optional extension modules (libtge-extra.a)
 examples/min/   minimal API examples (draw text, input, timer, grid)
-examples/games/ playable games: snake, pong, tetris, space invaders, ...
+examples/games/ 13 playable games (snake, pong, tetris, space invaders, ...)
 tests/          unit tests + sanity checks
 docs/           ADR, API stability policy
 ```
@@ -36,9 +36,23 @@ make games
 ```
 
 Games: `01_snake`, `02_pong`, `03_tetris`, `04_space_invaders`, `05_swarm`,
-`06_snake_grid`, `07_breakout`, `08_dino`. `06_snake_grid` is the reference example of
-the game architecture (world / renderer split over `TGE_Game`); `01_snake` is
-its minimal counterpart, written directly on the scene API.
+`06_snake_grid`, `07_breakout`, `08_dino`, `09_dungeon`, `10_map_editor`,
+`11_pacman`, `12_sokoban`, `13_minesweeper`. `06_snake_grid` is the reference
+example of the game architecture (world / renderer split over `TGE_Game`);
+`01_snake` is its minimal counterpart, written directly on the scene API.
+
+## Status
+
+**Beta 1** — the public C API (`include/tge/*.h`) is frozen for the beta
+(see `docs/API_STABILITY.md`). Optional `tge-extra` modules remain experimental.
+The C++ projection in `bindings/cpp/` is an ergonomics lab frozen at "C++ 1.0"
+within Beta 1, not part of the stable API contract.
+
+## C++ ergonomics lab
+
+`bindings/cpp/` is an experimental, intentionally-incomplete C++ wrapper (`tge::`)
+over the stable C API, used to drive ergonomic decisions. It is **not** a
+supported binding and is excluded from the API stability policy.
 
 ## Minimal program
 

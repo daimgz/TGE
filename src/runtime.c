@@ -201,24 +201,24 @@ void tge_runtime_cancel_scheduled(TGE_Runtime *rt, int timer_id)
     tge_scheduler_cancel(rt->scheduler, timer_id);
 }
 
-uint64_t tge_runtime_ticks(TGE_Runtime *rt)
+uint64_t tge_runtime_ticks(const TGE_Runtime *rt)
 {
     if (!rt || !rt->backend || !rt->backend->ticks)
         return 0;
     return rt->backend->ticks(rt->backend->data);
 }
 
-double tge_runtime_now(TGE_Runtime *rt)
+double tge_runtime_now(const TGE_Runtime *rt)
 {
     return (double)tge_runtime_ticks(rt) / 1000.0;
 }
 
-int tge_runtime_width(TGE_Runtime *rt)
+int tge_runtime_width(const TGE_Runtime *rt)
 {
     return rt ? rt->width : 0;
 }
 
-int tge_runtime_height(TGE_Runtime *rt)
+int tge_runtime_height(const TGE_Runtime *rt)
 {
     return rt ? rt->height : 0;
 }

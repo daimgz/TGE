@@ -9,16 +9,21 @@
 | Backend | vtable interna del runtime | Interna, no estable |
 | Extensiones | `tge-extra/*.h` (`libtge-extra.a`) | **Experimental**: puede romper compatibilidad entre minor versions |
 
-Estado actual: **pre-1.0** (ver `IMPLEMENTATION_PLAN.md`, checklist de pre-1.0).
+Estado actual: **Beta 1** (freeze de la API pública C dentro de la beta; ver
+`IMPLEMENTATION_PLAN.md` §6.4). La API pública C se considera congelada para
+Beta 1: no se agregan wrappers/funciones sin un consumidor real que lo justifique
+(regla *consumer-driven*). La compatibilidad ABI/API definitiva se garantiza en
+RC/1.0.
 
 `libtge-extra.a` es un archive opcional: los juegos que no usan extensiones
 solo linkean `-ltge`; los que sí (p.ej. un roguelike) añaden `-ltge-extra`.
 Cada módulo es independiente, usa solo la API pública de TGE y nunca
 `tge_internal.h`.
 
-Módulos actuales (experimentales): `entity`, `animation`, `collision`,
-`vec2i`, `direction`, `timer`, `fixedstep`, `input`, `grid`, `view`,
-`input_buffer`, `grid_view`, `game`, `sprite`. Los utilitarios (`vec2i`,
+Módulos actuales (experimentales): `actor`, `animation`, `array`, `collision`,
+`direction`, `entity`, `fixedstep`, `game`, `grid`, `grid_view`, `input`,
+`input_buffer`, `playfield`, `sprite`, `tilemap`, `timer`, `ui`, `vec2i`,
+`view`. Los utilitarios (`vec2i`,
 `direction`, `timer`, `fixedstep`, `input`) se validan como consumidores de
 ejemplo `examples/games/01_snake.c` y `05_swarm.c`; `grid` (capa de dibujo por
 grilla con tema visual `TGE_GridTheme` y tiles `TGE_GridTile`) se valida en
@@ -100,7 +105,18 @@ animación ni hitboxes; el juego conserva ambas decisiones.
   profundos, nunca el scene ni el userdata. El trampoline hace que
   `TGE_PopScene`/`TGE_ReplaceScene` liberen todo.
 
-## Versiones 0.x (pre-1.0)
+## Beta 1 (estado actual)
+- La API pública C (`include/tge/*.h`) está **congelada para la beta**: solo se
+  permiten cambios *additive* y justificados por un consumidor real; no se
+  elimina ni se cambia la semántica de lo ya público durante la beta.
+- `tge-extra/*.h` sigue siendo **experimental**: puede romper compatibilidad
+  entre minor versions de la beta.
+- `bindings/cpp/` es un **laboratorio de ergonomía** (la proyección `tge::`),
+  NO cubierto por esta política de estabilidad. Su superficie C++ se congela en
+  "1.0" dentro de Beta 1 (4 sondas / 125 tests); ver `IMPLEMENTATION_PLAN.md` §6.4/§6.5/§6.9.
+- La compatibilidad ABI/API **definitiva** se garantiza recién en RC/1.0.
+
+## Versiones 0.x (pre-1.0, histórico)
 - Breaking changes permitidos en cualquier release.
 - Se anuncian en el changelog.
 - Se evitan dentro de lo posible, pero no se garantizan.

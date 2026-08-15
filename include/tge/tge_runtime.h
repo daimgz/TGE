@@ -38,11 +38,11 @@ int  tge_runtime_call_every(TGE_Runtime *rt, double interval, int event_id,
 void tge_runtime_cancel_scheduled(TGE_Runtime *rt, int timer_id);
 
 /* Monotonic clock in ms and seconds since runtime creation. */
-uint64_t tge_runtime_ticks(TGE_Runtime *rt);
-double   tge_runtime_now(TGE_Runtime *rt);
+uint64_t tge_runtime_ticks(const TGE_Runtime *rt);
+double   tge_runtime_now(const TGE_Runtime *rt);
 
-int  tge_runtime_width(TGE_Runtime *rt);
-int  tge_runtime_height(TGE_Runtime *rt);
+int  tge_runtime_width(const TGE_Runtime *rt);
+int  tge_runtime_height(const TGE_Runtime *rt);
 /* Sets the terminal window title; no-op when the backend has no title
  * support. Passing NULL leaves the current title unchanged. */
 void tge_runtime_set_title(TGE_Runtime *rt, const char *title);
