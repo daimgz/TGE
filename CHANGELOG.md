@@ -7,6 +7,14 @@ la compatibilidad ABI/API definitiva se garantiza en RC/1.0.
 
 ## [Unreleased]
 
+### tge-extra (experimental)
+- `ui`: añade `tge_draw_region(TGE_Canvas*, TGE_Rect, title, fg)` — panel
+  rectangular delimitado (marco + título opcional en el borde superior).
+  Extraído de la operación repetida *frame + título* que `03_tetris`,
+  `09_dungeon` y `10_map_editor` implementaban de forma independiente. No es un
+  status-bar ni un sistema de layout; el área de contenido la dibuja el
+  consumidor (p.ej. `tge_rect_inset`).
+
 ## [1.0.0-beta.1] - 2026-08-15
 
 Primer release de congelación de la API pública C.

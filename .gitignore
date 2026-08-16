@@ -65,7 +65,15 @@ tests/test_sokoban
 tests/test_minesweeper
 tests/test_playfield
 tests/test_tilemap
+tests/test_tetris
 
 bindings/cpp/examples/snake
+bindings/cpp/examples/minesweeper
+bindings/cpp/examples/pacman
+bindings/cpp/examples/sokoban
+bindings/cpp/tests/test_snake
+bindings/cpp/tests/test_pacman
+bindings/cpp/tests/test_minesweeper
+bindings/cpp/tests/test_sokoban
 
 .cache/

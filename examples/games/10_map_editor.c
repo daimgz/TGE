@@ -3,7 +3,7 @@
  * region" pattern seen twice before survives contact with an editor layout
  * whose regions are not static HUD boxes.
  *
- *   TOOLS   a fixed toolbar line, bordered + titled.
+ *   TOOLS   a toolbar panel, bordered + titled.
  *   MAP     one TGE_Grid of 1x1 cells, fully editable, with a REVERSE cursor.
  *   PALETTE a second interactive region (not the map): a list with a
  *           highlighted selection, bordered + titled.
@@ -17,8 +17,8 @@
  * Every region is a TGE_Rect from the core, and its content area is
  * tge_rect_inset(r, 1) - the x+1 / y+1 / w-2 / h-2 relation this example
  * reached for a third time and that the core now provides. The draw helper
- * (a local `region_draw`) is still the game's own: the geometry helper was
- * extracted, the draw one was not. No tge-extra API is used in this example.
+ * (frame + optional title) was extracted into tge-extra/ui as tge_draw_region;
+ * this example now consumes it instead of keeping a local copy.
  */
 #include "tge/tge.h"
 
@@ -27,6 +27,7 @@
 #include "tge-extra/grid.h"
 #include "tge-extra/input.h"
 #include "tge-extra/vec2i.h"
+#include "tge-extra/ui.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,7 +51,7 @@ static const TGE_Rect STATUS  = { 1, 21, TOOLS_W, 1 };
 
 #define CTRL_Y 22
 
-/* The MAP grid fills the region interior. Compile-time because it sizes the
+/* The MAP grid occupies the inset content rect. Compile-time because it sizes the
  * cell array; the drawing code derives the interior from the rect instead. */
 #define MAP_GRID_W (MAP_W - 2)
 #define MAP_GRID_H (MAP_H - 2)
@@ -109,8 +110,6 @@ static void editor_paint(EditorGame *g);
 static void editor_clear(EditorGame *g);
 static const TGE_Sprite *tile_sprite(TileId t);
 static TGE_Color tile_color(TileId t);
-static void region_draw(TGE_Canvas *canvas, TGE_Rect r, const char *title,
-                        TGE_Color fg);
 static void renderer_draw_tools(TGE_Canvas *canvas);
 static void renderer_draw_map(EditorRenderer *r, const EditorGame *g);
 static void renderer_draw_palette(TGE_Canvas *canvas, const EditorGame *g);
@@ -251,26 +250,15 @@ static void renderer_draw(EditorRenderer *r, TGE_Canvas *canvas,
     tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
     tge_grid_attach(&r->grid, canvas);
 
-    region_draw(canvas, TOOLS, " TOOLS ", TGE_COLOR_CYAN);
-    region_draw(canvas, MAP, NULL, TGE_COLOR_CYAN);
-    region_draw(canvas, PALETTE, " PALETTE ", TGE_COLOR_YELLOW);
+    tge_draw_region(canvas, TOOLS, " TOOLS ", TGE_COLOR_CYAN);
+    tge_draw_region(canvas, MAP, NULL, TGE_COLOR_CYAN);
+    tge_draw_region(canvas, PALETTE, " PALETTE ", TGE_COLOR_YELLOW);
 
     renderer_draw_tools(canvas);
     renderer_draw_map(r, g);
     renderer_draw_palette(canvas, g);
     renderer_draw_status(canvas, g);
     renderer_draw_controls(canvas);
-}
-
-/* The repeated frame + title pattern, captured once; a NULL title means "no
- * title row", as for the map. Same shape as the dungeon's local helper, but
- * parameterized by a TGE_Rect instead of four ints. */
-static void region_draw(TGE_Canvas *canvas, TGE_Rect r, const char *title,
-                        TGE_Color fg)
-{
-    tge_draw_frame(canvas, r.x, r.y, r.w, r.h, fg, TGE_COLOR_DEFAULT);
-    if (title)
-        tge_draw_text(canvas, r.x + 1, r.y, title, fg, TGE_COLOR_DEFAULT);
 }
 
 static void renderer_draw_tools(TGE_Canvas *canvas)

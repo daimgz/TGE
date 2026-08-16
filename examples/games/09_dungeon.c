@@ -16,8 +16,9 @@
  * The experiment: each region is described as an outer rect (x, y, w, h) and
  * its content area is recomputed as x+1 / y+1 / w-2 / h-2 wherever it is
  * used; every bordered region repeats the frame + title draw. That repetition
- * (captured once in the local `region_draw` helper) is the evidence under
- * study. No tge-extra API is added in this example.
+ * (frame + optional title) became the shared `tge_draw_region` in
+ * tge-extra/ui, extracted because Tetris, Dungeon and Map Editor repeated the
+ * same operation independently. This example now consumes it.
  *
  * Gameplay is minimal on purpose: exterior walls plus a few random interior
  * walls, a few enemies, gold and an exit. Arrows/WASD move one cell per
@@ -130,8 +131,6 @@ static void game_event(TGE_GameContext *ctx, TGE_Event *ev);
 static void renderer_init(DungeonRenderer *r);
 static void renderer_draw(DungeonRenderer *r, TGE_Canvas *canvas,
                           const DungeonWorld *w, const DungeonLog *log);
-static void region_draw(TGE_Canvas *canvas, int x, int y, int w, int h,
-                        const char *title, TGE_Color fg);
 static void renderer_draw_map(DungeonRenderer *r, const DungeonWorld *w);
 static void renderer_draw_stats(TGE_Canvas *canvas, const DungeonWorld *w);
 static void renderer_draw_log(TGE_Canvas *canvas, const DungeonLog *log);
@@ -282,25 +281,17 @@ static void renderer_draw(DungeonRenderer *r, TGE_Canvas *canvas,
     tge_clear(canvas, ' ', TGE_COLOR_BLACK, TGE_COLOR_DEFAULT);
     tge_grid_attach(&r->grid, canvas);
 
-    region_draw(canvas, MAP_X, MAP_Y, MAP_W, MAP_H, NULL, TGE_COLOR_CYAN);
-    region_draw(canvas, STATS_X, STATS_Y, STATS_W, STATS_H, " STATS ",
-                TGE_COLOR_YELLOW);
-    region_draw(canvas, LOG_X, LOG_Y, LOG_W, LOG_H, " LOG ", TGE_COLOR_CYAN);
+    tge_draw_region(canvas, (TGE_Rect){MAP_X, MAP_Y, MAP_W, MAP_H}, NULL,
+                    TGE_COLOR_CYAN);
+    tge_draw_region(canvas, (TGE_Rect){STATS_X, STATS_Y, STATS_W, STATS_H},
+                    " STATS ", TGE_COLOR_YELLOW);
+    tge_draw_region(canvas, (TGE_Rect){LOG_X, LOG_Y, LOG_W, LOG_H}, " LOG ",
+                    TGE_COLOR_CYAN);
 
     renderer_draw_map(r, w);
     renderer_draw_stats(canvas, w);
     renderer_draw_log(canvas, log);
     renderer_draw_controls(canvas);
-}
-
-/* The repeated frame + title pattern, captured once: every bordered region
- * asks for exactly this, with a NULL title meaning "no title row". */
-static void region_draw(TGE_Canvas *canvas, int x, int y, int w, int h,
-                        const char *title, TGE_Color fg)
-{
-    tge_draw_frame(canvas, x, y, w, h, fg, TGE_COLOR_DEFAULT);
-    if (title)
-        tge_draw_text(canvas, x + 1, y, title, fg, TGE_COLOR_DEFAULT);
 }
 
 static void renderer_draw_map(DungeonRenderer *r, const DungeonWorld *w)

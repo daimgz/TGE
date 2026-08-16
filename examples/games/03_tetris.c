@@ -28,6 +28,7 @@
 #include "tge-extra/vec2i.h"
 #include "tge-extra/view.h"
 #include "tge-extra/game.h"
+#include "tge-extra/ui.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -174,7 +175,7 @@ static void title_draw(TGE_Scene *scene, TGE_Canvas *canvas)
     const char *c2 = " Down: soft drop    Space: hard drop ";
     const char *start = " [ENTER] to start  [Q] to quit ";
 
-    tge_draw_frame(canvas, 0, 0, w, h, TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_region(canvas, (TGE_Rect){0, 0, w, h}, NULL, TGE_COLOR_CYAN);
     tge_draw_centered_text(canvas, h / 2 - 3, title, TGE_COLOR_GREEN,
                            TGE_COLOR_DEFAULT);
     tge_draw_centered_text(canvas, h / 2, c1, TGE_COLOR_WHITE,
@@ -255,15 +256,15 @@ static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas)
 
     renderer_attach(&g->renderer, canvas);
 
-    tge_draw_frame(canvas, OX - 1, OY - 1, COLS * 2 + 2, ROWS + 2,
-                   TGE_COLOR_CYAN, TGE_COLOR_DEFAULT);
+    tge_draw_region(canvas, (TGE_Rect){OX - 1, OY - 1, COLS * 2 + 2, ROWS + 2},
+                   NULL, TGE_COLOR_CYAN);
 
     renderer_draw_board(&g->renderer, &g->world);
     renderer_draw_piece(&g->renderer, &g->world);
     renderer_draw_next(&g->renderer, &g->world);
 
-    tge_draw_text(canvas, 25, 1, " NEXT ", TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
-    tge_draw_frame(canvas, 24, 2, 10, 5, TGE_COLOR_BLUE, TGE_COLOR_DEFAULT);
+    tge_draw_region(canvas, (TGE_Rect){24, 2, 10, 5}, " NEXT ",
+                    TGE_COLOR_YELLOW);
 
     tge_draw_text(canvas, 25, 9, " SCORE ", TGE_COLOR_YELLOW, TGE_COLOR_DEFAULT);
     tge_printf(canvas, 25, 10, TGE_COLOR_WHITE, TGE_COLOR_DEFAULT, "%6d",

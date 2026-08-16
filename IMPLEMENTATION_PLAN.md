@@ -140,7 +140,7 @@ Esto es lo opuesto a "voy a necesitar A* algún día → implementemos A* ahora"
 | F3b | tge-extra validation (Snake, Breakout, Pac-Man, Sokoban, Minesweeper) | ✅ DONE (cerrada en #10) |
 | **F4** | **Consolidación / API freeze para Beta 1** | **✅ DONE** |
 | **F5** | **Release Beta 1** | **✅ DONE** |
-| F6 | Feedback / estabilización (Beta 2) | **← SIGUIENTE** |
+| F6 | Feedback / estabilización (Beta 2) | **← ACTIVA** |
 | F7 | Release Candidate | futuro |
 | F8 | v1.0 final | futuro |
 | Post-v1.0 | FOV, Pathfinding, Noise, AI, Camera, Palette/Theme, Python bindings | por diseñar |
@@ -572,6 +572,39 @@ Candidatos 1.1 confirmados tras la validación (no implementados; la C++ 1.0 que
 
 El probe **no se modifica**: sus 47 tests verdes documentan exactamente el estado actual de
 la API (incluido el escape hatch), que es el valor que queríamos preservar.
+
+### 6.10 Estudio F6 — composición de pantalla (Beta 2) → `tge_draw_region`
+
+Encuesta de los 13 juegos buscando patrones de composición de pantalla. Aparecen
+dos patrones recurrentes y uno esporádico:
+
+- **Patrón A — panel rectangular delimitado (marco + título opcional + contenido
+  insetado):** `03_tetris`, `09_dungeon`, `10_map_editor`. `09_dungeon` y
+  `10_map_editor` escribieron cada uno un `region_draw` local independiente;
+  Tetris lo hacía *inline*. El core ya provee `TGE_Rect` + `tge_rect_inset`,
+  cuya propia doc dice *"a region's content area is tge_rect_inset(r, 1)"*. La
+  única pieza que faltaba era la conveniencia marco+título.
+- **Patrón B — barra de estado superior (una sola fila, varios campos con
+  `tge_printf`):** `02_pong`, `04_space_invaders`, `05_swarm`. Forma distinta;
+  queda fuera del alcance de `tge_draw_region`.
+- Resto: `08_dino` (HUD de dígitos propio); `01/06/07/11/12/13` (un solo marco
+  de área de juego + modales).
+
+**Decisión (consumer-driven, no especulativa):** extraer
+`tge_draw_region(TGE_Canvas*, TGE_Rect rect, const char *title, TGE_Color fg)`
+en `tge-extra/ui` — el mismo hogar que `tge_draw_modal`, y deja el core congelado
+("core = primitivas, tge-extra/ui = patrones de UI"). Un único `fg` para marco y
+título (colapsa el NEXT bicolor de Tetris; aceptable, evita parámetros que solo
+existen para conciliar consumidores). La posición del título es en el borde
+superior (inset 1 columna), igual que los helpers locales originales.
+
+**Explícitamente NO hecho:** struct `TGE_Region` (ningún consumidor guarda una
+región titulada como dato — el bundle en el sitio de llamada basta); ningún motor
+de layout; ningún sistema de status-bar.
+
+**Verificación:** `tests/test_ui.c` (marco+título, título NULL, `fg` único,
+contenido/inset responsabilidad del llamador). Los tres consumidores ahora llaman
+`tge_draw_region`; la lógica duplicada `region_draw` vive una sola vez en `ui.c`.
 
 ---
 
