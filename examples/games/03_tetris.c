@@ -124,6 +124,7 @@ static void renderer_init(TetrisRenderer *r);
 static void renderer_attach(TetrisRenderer *r, TGE_Canvas *canvas);
 static void renderer_draw_board(TetrisRenderer *r, const Tetris *t);
 static void renderer_draw_piece(TetrisRenderer *r, const Tetris *t);
+static void renderer_draw_ghost(TetrisRenderer *r, const Tetris *t);
 static void renderer_draw_next(TetrisRenderer *r, const Tetris *t);
 static void tetris_game_init(TetrisGame *g);
 static void tetris_resize(Tetris *t, int w, int h);
@@ -260,6 +261,7 @@ static void game_draw(TGE_GameContext *ctx, TGE_Canvas *canvas)
                    NULL, TGE_COLOR_CYAN);
 
     renderer_draw_board(&g->renderer, &g->world);
+    renderer_draw_ghost(&g->renderer, &g->world);
     renderer_draw_piece(&g->renderer, &g->world);
     renderer_draw_next(&g->renderer, &g->world);
 
@@ -406,6 +408,27 @@ static void renderer_draw_piece(TetrisRenderer *r, const Tetris *t)
             if (t->cur.cells[y][x])
                 tge_grid_set_cell(&r->board, t->pos.x + x, t->pos.y + y, col,
                                   TGE_COLOR_DEFAULT);
+}
+
+/* Landing projection ("ghost piece"): where the active piece would come to
+ * rest on a hard drop. Drawn dimmed so it reads as a guide, not a live block.
+ * The landing cell is collision-free (same test the real drop uses), so it
+ * never overwrites locked board cells; when the piece is already resting it
+ * coincides with the piece and the full-color draw on top wins. */
+static void renderer_draw_ghost(TetrisRenderer *r, const Tetris *t)
+{
+    if (t->state != STATE_PLAYING)
+        return;
+    TGE_Vec2i gp = t->pos;
+    while (fits_shape(&t->cur, t, tge_vec2i_add(gp, tge_vec2i(0, 1))))
+        gp = tge_vec2i_add(gp, tge_vec2i(0, 1));
+    TGE_Color col = tge_color_indexed(t->cur.color);
+    for (int y = 0; y < t->cur.n; y++)
+        for (int x = 0; x < t->cur.n; x++)
+            if (t->cur.cells[y][x])
+                tge_grid_put_attr(&r->board, gp.x + x, gp.y + y,
+                                  TGE_GRID_THEME_BLOCKS.default_sprite, col,
+                                  TGE_COLOR_DEFAULT, TGE_CELL_ATTR_DIM);
 }
 
 static void renderer_draw_next(TetrisRenderer *r, const Tetris *t)
