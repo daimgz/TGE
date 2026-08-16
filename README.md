@@ -76,6 +76,15 @@ headers públicos. Ver `docs/ARCHITECTURE.md`.
 referencia de la arquitectura (split *world* / *renderer* sobre `TGE_GameContext`);
 `01_snake` es su contraparte mínima, escrita directo sobre la API de escenas.
 
+## Official projects
+
+Los juegos que crecen más allá de un ejemplo simple son **repositorios
+independientes** que consumen TGE como dependencia externa (ver
+`docs/official-games.md`). TGE sigue siendo el motor; los juegos son productos
+reales que viven en su propio repo (`tge-tetris`, `tge-sokoban`, `tge-pacman`,
+…). Los ejemplos de `examples/` siguen demostrando la API, no siendo el juego
+completo.
+
 ## Beta 1 status
 
 **Beta 1** congela la API pública C (`include/tge/*.h`): durante la beta solo se
@@ -117,6 +126,7 @@ representativo.)
 - `docs/MODULES.md` — qué existe en `tge-extra`.
 - `docs/ARCHITECTURE.md` — cómo está diseñado (capas, modelo de memoria, bindings).
 - `docs/API_STABILITY.md` — qué significa "estable" en TGE.
+- `docs/official-games.md` — juegos oficiales como repos independientes y su dependencia de TGE.
 - `CHANGELOG.md` — qué cambió en Beta 1.
 - `IMPLEMENTATION_PLAN.md` — historia y decisiones internas del proyecto.
 - `ADR.md` — decisiones arquitectónicas (Architecture Decision Records).
