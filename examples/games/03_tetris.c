@@ -66,6 +66,14 @@ typedef struct {
     uint8_t color;
 } Tetromino;
 
+/* 7-bag randomizer: every block of seven pieces is a permutation of all seven
+ * tetromino indices, so each piece appears exactly once before any repeats.
+ * Pure gameplay state - lives in the game, not in TGE. */
+typedef struct {
+    int pieces[7];
+    int index;
+} PieceBag;
+
 typedef struct {
     int board[ROWS][COLS];
     Tetromino cur;
@@ -80,6 +88,7 @@ typedef struct {
     TGE_Timer rot; /* rotation cooldown (classic debounce) */
     TGE_View view;
     int last_w, last_h; /* last surface the view was computed for (-1 = none) */
+    PieceBag bag;       /* 7-bag piece source (gameplay logic, not engine API) */
 } Tetris;
 
 /* The board and the NEXT preview are two separate coordinate spaces, so the
@@ -144,6 +153,8 @@ static void game_over(Tetris *t);
 static void clear_lines(Tetris *t);
 static void spawn(Tetris *t);
 static void lock(Tetris *t);
+static void bag_refill(PieceBag *bag);
+static int bag_next(PieceBag *bag);
 
 int main(void)
 {
@@ -483,7 +494,8 @@ static void reset(Tetris *t)
     t->lines = 0;
     t->state = STATE_PLAYING;
     t->paused = false;
-    t->next = rand() % 7;
+    bag_refill(&t->bag);
+    t->next = bag_next(&t->bag);
     tge_timer_init(&t->rot, ROTATE_DEBOUNCE);
     /* Preload the cooldown so the very first rotation after a reset is
      * immediate (the old `last_rotate = -ROTATE_DEBOUNCE` did the same). */
@@ -647,10 +659,30 @@ static void clear_lines(Tetris *t)
     }
 }
 
+static void bag_refill(PieceBag *bag)
+{
+    for (int i = 0; i < 7; ++i)
+        bag->pieces[i] = i;
+    for (int i = 6; i > 0; --i) {
+        int j = rand() % (i + 1);
+        int tmp = bag->pieces[i];
+        bag->pieces[i] = bag->pieces[j];
+        bag->pieces[j] = tmp;
+    }
+    bag->index = 0;
+}
+
+static int bag_next(PieceBag *bag)
+{
+    if (bag->index >= 7)
+        bag_refill(bag);
+    return bag->pieces[bag->index++];
+}
+
 static void spawn(Tetris *t)
 {
     t->cur = kPieces[t->next];
-    t->next = rand() % 7;
+    t->next = bag_next(&t->bag);
     t->pos = tge_vec2i((COLS - t->cur.n) / 2, 0);
     if (!fits(t, t->pos))
         game_over(t);
