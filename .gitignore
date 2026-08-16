@@ -71,9 +71,11 @@ bindings/cpp/examples/snake
 bindings/cpp/examples/minesweeper
 bindings/cpp/examples/pacman
 bindings/cpp/examples/sokoban
+bindings/cpp/examples/tetris/tetris
 bindings/cpp/tests/test_snake
-bindings/cpp/tests/test_pacman
 bindings/cpp/tests/test_minesweeper
+bindings/cpp/tests/test_pacman
 bindings/cpp/tests/test_sokoban
+bindings/cpp/tests/test_tetris
 
 .cache/
